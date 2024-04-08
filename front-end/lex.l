@@ -1,11 +1,15 @@
 %{
     #include <stdio.h>
+    #include <stdbool.h>
     #include "y.tab.h"
 %}
 %%
+    /* numbers */
 [0-9]+      {
-                printf("INTEGER\n");
+                yylval.ival = atoi(yytext);
+                return NUM;
             }
+    /* words */
 [a-zA-Z]+   {
                 if (strcmp("if", yytext) == 0) {
                     return IF;
@@ -16,31 +20,75 @@
                 else if (strcmp("while", yytext) == 0) {
                     return WHILE;
                 }
+                else if (strcmp("return", yytext) == 0) {
+                    return RETURN;
+                }
+                else if (strcmp("int", yytext) == 0) {
+                    return INTEGER;
+                }
+                else if (strcmp("void", yytext) == 0) {
+                    return VOID;
+                }
+                else if (strcmp("extern", yytext) == 0) {
+                    return EXTERN;
+                }
                 else {
-                    printf("WORD\n");
+                    return VARIABLE;
                 }
             }
+    /* Mathematical operators */
+[+\-*/]     {
+                if (strcmp("+", yytext) == 0) {
+                    return ADD;
+                }
+                else if (strcmp("-", yytext) == 0) {
+                    return SUBTRACT;
+                }
+                else if (strcmp("*", yytext) == 0) {
+                    return MULT;
+                }
+                else if (strcmp("/", yytext) == 0) {
+                    return DIV;
+                }
+            }
+    /* comparisons */
+[<>=]       {
+                if (strcmp("<", yytext) == 0) {
+                    return LESS;
+                }
+                else if (strcmp(">", yytext) == 0) {
+                    return GREATER;
+                }
+                else if (strcmp("=", yytext) == 0) {
+                    return EQUAL;
+                }
+            }
+    /* whitespace */
 [ \t\n]     { 
                 return yytext[0]; 
             }
+    /* miscellaneous */
+[(){};]     {
+                if (strcmp("(", yytext) == 0) {
+                    return LEFTPAREN;
+                }
+                else if (strcmp(")", yytext) == 0) {
+                    return RIGHTPAREN;
+                }
+                else if (strcmp("{", yytext) == 0) {
+                    return LEFTCURL;
+                }
+                else if (strcmp("}", yytext) == 0) {
+                    return RIGHTCURL;
+                }
+                else if (strcmp(";", yytext) == 0) {
+                    return SEMICOLON;
+                }
+            }
 .           {
-                printf("Error\n");
+                printf("ERROR\n");
             }
 %%
 int yywrap() {
-    return(0);
+    return(1);
 }
-
-// int main(int argc, char* argv[]) {
-//     if (argc == 2) {
-//         yyin = fopen(argv[1], "r");
-
-//         if (yyin == NULL) {
-//             printf("ERROR\n");
-//             return(1);
-//         }
-//     }
-//     yylex();
-//     return(0);
-
-// }

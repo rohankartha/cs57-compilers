@@ -1,5 +1,6 @@
 %{
     #include <stdio.h>
+    #include <stdbool.h>
     extern int yylex();
     extern int yylex_destroy();
     extern int yywrap();
@@ -9,23 +10,45 @@
 %union{
     int ival;
     char* string;
+    bool boolean;
 }
 
-/* %token <ival> INTEGER
-%token <string> VARIABLE
-%token GREATER
-%token LESS
-%token EQUALS
-%token GREATEREQUAL
-%token LESSEQUAL */
-%token IF
-%token WHILE
-%token RETURN
-%token ELSE
+%token IF WHILE ELSE RETURN INTEGER EXTERN VOID
+%token <ival> NUM
+%token<string> VARIABLE
+
+%token ADD SUBTRACT MULT DIV
+/* %nonassoc ADD SUBTRACT MULT DIV */
+
+%token GREATER LESS EQUAL
+%token LEFTPAREN RIGHTPAREN LEFTCURL RIGHTCURL
+%token SEMICOLON
+
+%type <ival> expression
+%type <boolean> condition
+%type <string> variable
+
+
 /* %token PRINT
 %token READ */
 %%
-asdf:
+/* 
+statements : statements statement
+           | statement */
+
+
+
+expression : NUM {$$ = $1;}
+           | expression ' ' ADD ' ' expression {$$ = $1 + $5;}
+           | expression ' ' SUBTRACT ' ' expression {$$ = $1 - $5;}
+           | expression ' ' MULT ' ' expression {$$ = $1 * $5;}
+           | expression ' ' DIV ' ' expression {$$ = $1 / $5;}
+
+condition  : 
+           | expression ' ' GREATER ' ' expression {$$ = $1 > $5;}
+           | expression ' ' LESS ' ' expression {$$ = $1 < $5;}
+           | expression ' ' EQUAL ' ' expression {$$ = $1 == $5;}
+
 
 %%
 int yyerror(char *s) {

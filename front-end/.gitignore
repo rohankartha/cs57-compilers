@@ -42,4 +42,12 @@ TAGS
 
 # Do NOT push data files to git.
 # I suggest you create crawler/indexer output in subdirectories of ./data
-sample_miniC.c syntaxanalyzer test-input.txt lex.yy.c y.tab.c y.tab.h
+sample_miniC.c 
+syntaxanalyzer 
+test-input.txt 
+lex.yy.c 
+y.tab.c 
+y.tab.h
+y.output
+test.txt
+parser_tests
