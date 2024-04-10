@@ -1,11 +1,13 @@
 %{
     #include <stdio.h>
     #include <stdbool.h>
+    #include <string.h>
     extern int yylex();
     extern int yylex_destroy();
     extern int yywrap();
     int yyerror(char *);
     extern FILE* yyin;
+    int yydebug = 1;
 %}
 %union{
     int ival;
@@ -13,7 +15,7 @@
     bool boolean;
 }
 
-%token IF WHILE ELSE RETURN INTEGER EXTERN VOID
+%token IF WHILE ELSE RETURN INTEGER EXTERN VOID PRINT READ FUNC
 %token <ival> NUM
 %token<string> VARIABLE
 
@@ -26,29 +28,36 @@
 
 %type <ival> expression
 %type <boolean> condition
-%type <string> variable
 
 
 /* %token PRINT
-%token READ */
+%token READ 
+add to statements: custom functions */
 %%
-/* 
+
 statements : statements statement
-           | statement */
+           | statement 
 
-
+statement  : WHILE LEFTPAREN condition RIGHTPAREN LEFTCURL statements RIGHTCURL {}
+           | IF ' ' LEFTPAREN condition RIGHTPAREN LEFTCURL statements RIGHTCURL {}
+           | IF ' ' LEFTPAREN condition RIGHTPAREN LEFTCURL statements RIGHTCURL ELSE ' ' LEFTCURL statements RIGHTCURL {}
+           | EXTERN ' ' VOID ' ' PRINT LEFTPAREN INTEGER RIGHTPAREN SEMICOLON {}
+           | EXTERN ' ' INTEGER ' ' READ LEFTPAREN RIGHTPAREN SEMICOLON {}
+           | RETURN  ' ' LEFTPAREN expression RIGHTPAREN SEMICOLON {}
+           | INTEGER ' ' VARIABLE ' ' EQUAL ' ' expression {}
+           | INTEGER ' ' VARIABLE SEMICOLON {}
+           | VARIABLE ' ' EQUAL ' ' expression {}
+           | INTEGER ' ' FUNC LEFTPAREN INTEGER ' ' VARIABLE RIGHTPAREN LEFTCURL statements RIGHTCURL {}
 
 expression : NUM {$$ = $1;}
-           | expression ' ' ADD ' ' expression {$$ = $1 + $5;}
-           | expression ' ' SUBTRACT ' ' expression {$$ = $1 - $5;}
-           | expression ' ' MULT ' ' expression {$$ = $1 * $5;}
-           | expression ' ' DIV ' ' expression {$$ = $1 / $5;}
+           | expression ' ' ADD ' ' expression SEMICOLON {$$ = $1 + $5;}
+           | expression ' ' SUBTRACT ' ' expression SEMICOLON {$$ = $1 - $5;}
+           | expression ' ' MULT ' ' expression SEMICOLON {$$ = $1 * $5;}
+           | expression ' ' DIV ' ' expression SEMICOLON {$$ = $1 / $5;}
 
-condition  : 
-           | expression ' ' GREATER ' ' expression {$$ = $1 > $5;}
+condition  : expression ' ' GREATER ' ' expression {$$ = $1 > $5;}
            | expression ' ' LESS ' ' expression {$$ = $1 < $5;}
            | expression ' ' EQUAL ' ' expression {$$ = $1 == $5;}
-
 
 %%
 int yyerror(char *s) {

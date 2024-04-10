@@ -1,6 +1,7 @@
 %{
     #include <stdio.h>
     #include <stdbool.h>
+    #include <string.h>
     #include "y.tab.h"
 %}
 %%
@@ -32,7 +33,18 @@
                 else if (strcmp("extern", yytext) == 0) {
                     return EXTERN;
                 }
+                else if (strcmp("print", yytext) == 0) {
+                    return PRINT;
+                }
+                else if (strcmp("read", yytext) == 0) {
+                    return READ;
+                }
+                else if (strcmp("func", yytext) == 0) {
+                    return FUNC;
+                }
                 else {
+                    yylval.string = calloc(strlen(yytext) + 1, sizeof(char));
+                    strcpy(yylval.string, yytext);
                     return VARIABLE;
                 }
             }
@@ -64,9 +76,11 @@
                 }
             }
     /* whitespace */
-[ \t\n]     { 
+[ ]       { 
                 return yytext[0]; 
             }
+    /* new line */
+[\n\t]        {}
     /* miscellaneous */
 [(){};]     {
                 if (strcmp("(", yytext) == 0) {

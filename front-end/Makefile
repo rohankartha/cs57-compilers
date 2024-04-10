@@ -8,15 +8,15 @@ YACCOUTPUT = y.tab.c
 
 # Make syntax analyzer from Lex and Yacc
 syntaxanalyzer: $(YACCFILENAME).y $(LEXFILENAME).l
-	yacc -d -v $(YACCFILENAME).y
+	yacc -d -v -t -Wcounterexamples $(YACCFILENAME).y
 	lex -d $(LEXFILENAME).l
 	gcc $(LEXOUTPUT) $(YACCOUTPUT) -o syntaxanalyzer
 
 test: 
-	./syntaxanalyzer test-input.txt > test.txt
+	./syntaxanalyzer parser_tests/p1.c 2> error.txt
 
 clean:
-	rm -rf syntaxanalyzer lex.yy.c y.tab.c y.tab.h y.output lex.out
+	rm -rf syntaxanalyzer lex.yy.c y.tab.c y.tab.h y.output lex.out error.txt
 
 # yacc -d $(YACCFILENAME).y
 # gcc $(LEXOUTPUT) $(YACCOUTPUT) -o syntaxanalyzer
