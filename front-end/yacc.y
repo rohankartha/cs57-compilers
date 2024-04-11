@@ -2,25 +2,30 @@
     #include <stdio.h>
     #include <stdbool.h>
     #include <string.h>
+    //#include <cstddef>
+    //#include <vector>
+    //#include "ast/ast.h"
+
     extern int yylex();
     extern int yylex_destroy();
     extern int yywrap();
-    int yyerror(char *);
+    extern int yytext;
+    int yyerror(const char *);
     extern FILE* yyin;
-    int yydebug = 1;
 %}
 %union{
     int ival;
-    char* string;
+    char* svar;
     bool boolean;
 }
 
 %token IF WHILE ELSE RETURN INTEGER EXTERN VOID PRINT READ FUNC
 %token <ival> NUM
-%token<string> VARIABLE
+%token<svar> VARIABLE
 
 %token ADD SUBTRACT MULT DIV
-/* %nonassoc ADD SUBTRACT MULT DIV */
+%left ADD SUBTRACT 
+%left MULT DIV
 
 %token GREATER LESS EQUAL
 %token LEFTPAREN RIGHTPAREN LEFTCURL RIGHTCURL
@@ -30,42 +35,50 @@
 %type <boolean> condition
 
 
-/* %token PRINT
-%token READ 
-add to statements: custom functions */
+/* add to statements: custom functions */
 %%
 
 statements : statements statement
            | statement 
 
-statement  : WHILE LEFTPAREN condition RIGHTPAREN LEFTCURL statements RIGHTCURL {}
-           | IF ' ' LEFTPAREN condition RIGHTPAREN LEFTCURL statements RIGHTCURL {}
-           | IF ' ' LEFTPAREN condition RIGHTPAREN LEFTCURL statements RIGHTCURL ELSE ' ' LEFTCURL statements RIGHTCURL {}
-           | EXTERN ' ' VOID ' ' PRINT LEFTPAREN INTEGER RIGHTPAREN SEMICOLON {}
-           | EXTERN ' ' INTEGER ' ' READ LEFTPAREN RIGHTPAREN SEMICOLON {}
-           | RETURN  ' ' LEFTPAREN expression RIGHTPAREN SEMICOLON {}
-           | INTEGER ' ' VARIABLE ' ' EQUAL ' ' expression {}
-           | INTEGER ' ' VARIABLE SEMICOLON {}
-           | VARIABLE ' ' EQUAL ' ' expression {}
-           | INTEGER ' ' FUNC LEFTPAREN INTEGER ' ' VARIABLE RIGHTPAREN LEFTCURL statements RIGHTCURL {}
+statement  : EXTERN VOID PRINT LEFTPAREN INTEGER RIGHTPAREN SEMICOLON {}
+           | EXTERN INTEGER READ LEFTPAREN RIGHTPAREN SEMICOLON {}
+           | RETURN LEFTPAREN expression RIGHTPAREN SEMICOLON {}
+           | RETURN expression SEMICOLON {}
+           | INTEGER VARIABLE EQUAL expression {}
+           | INTEGER VARIABLE SEMICOLON {}
+           | VARIABLE EQUAL expression SEMICOLON {}
+           | INTEGER FUNC LEFTPAREN INTEGER VARIABLE RIGHTPAREN LEFTCURL statements RIGHTCURL {}
+           | WHILE LEFTPAREN condition RIGHTPAREN LEFTCURL statements RIGHTCURL {}
+           | IF LEFTPAREN condition RIGHTPAREN LEFTCURL statements RIGHTCURL {}
+           | IF LEFTPAREN condition RIGHTPAREN LEFTCURL statements RIGHTCURL ELSE LEFTCURL statements RIGHTCURL {}
+           | function SEMICOLON
 
-expression : NUM {$$ = $1;}
-           | expression ' ' ADD ' ' expression SEMICOLON {$$ = $1 + $5;}
-           | expression ' ' SUBTRACT ' ' expression SEMICOLON {$$ = $1 - $5;}
-           | expression ' ' MULT ' ' expression SEMICOLON {$$ = $1 * $5;}
-           | expression ' ' DIV ' ' expression SEMICOLON {$$ = $1 / $5;}
+function   : READ LEFTPAREN RIGHTPAREN {}
+           | VARIABLE EQUAL READ LEFTPAREN RIGHTPAREN {} 
+           | PRINT LEFTPAREN expression RIGHTPAREN {}   
 
-condition  : expression ' ' GREATER ' ' expression {$$ = $1 > $5;}
-           | expression ' ' LESS ' ' expression {$$ = $1 < $5;}
-           | expression ' ' EQUAL ' ' expression {$$ = $1 == $5;}
+expression : NUM {}
+           | VARIABLE {}
+           | expression ADD expression {}
+           | expression SUBTRACT expression {}
+           | expression MULT expression {}
+           | expression DIV expression {}
 
+condition  : expression GREATER expression {}
+           | expression LESS expression {}
+           | expression EQUAL expression {}
+ 
 %%
-int yyerror(char *s) {
+int yyerror(const char *s) {
     fprintf(stderr, "%s\n", s);
     return 0;
 }
 
 int main(int argc, char* argv[]) {
+    #ifdef YYDEBUG
+      yydebug = 1;
+  #endif
     if (argc == 2) {
         yyin = fopen(argv[1], "r");
         if (yyin == NULL) {

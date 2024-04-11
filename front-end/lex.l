@@ -10,7 +10,7 @@
                 yylval.ival = atoi(yytext);
                 return NUM;
             }
-    /* words */
+    /* keywords */
 [a-zA-Z]+   {
                 if (strcmp("if", yytext) == 0) {
                     return IF;
@@ -43,8 +43,8 @@
                     return FUNC;
                 }
                 else {
-                    yylval.string = calloc(strlen(yytext) + 1, sizeof(char));
-                    strcpy(yylval.string, yytext);
+                    yylval.svar = (char*) calloc(strlen(yytext) + 1, sizeof(char));
+                    strcpy(yylval.svar, yytext);
                     return VARIABLE;
                 }
             }
@@ -76,11 +76,7 @@
                 }
             }
     /* whitespace */
-[ ]       { 
-                return yytext[0]; 
-            }
-    /* new line */
-[\n\t]        {}
+[\n\t ]      {}
     /* miscellaneous */
 [(){};]     {
                 if (strcmp("(", yytext) == 0) {
