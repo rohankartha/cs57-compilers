@@ -2,9 +2,9 @@
     #include <stdio.h>
     #include <stdbool.h>
     #include <string.h>
-    //#include <cstddef>
-    //#include <vector>
-    //#include "ast/ast.h"
+    #include <cstddef>
+    #include <vector>
+    #include "ast/ast.h"
 
     extern int yylex();
     extern int yylex_destroy();
@@ -17,6 +17,7 @@
     int ival;
     char* svar;
     bool boolean;
+    astNode* nodeptr;
 }
 
 %token IF WHILE ELSE RETURN INTEGER EXTERN VOID PRINT READ FUNC
@@ -28,11 +29,12 @@
 %left MULT DIV
 
 %token GREATER LESS EQUAL
-%token LEFTPAREN RIGHTPAREN LEFTCURL RIGHTCURL
+%token LPAREN RPAREN LCURL RCURL
 %token SEMICOLON
 
-%type <ival> expression
+
 %type <boolean> condition
+%type <nodeptr> block statement declaration expression term
 
 
 /* add to statements: custom functions */
@@ -41,33 +43,39 @@
 statements : statements statement
            | statement 
 
-statement  : EXTERN VOID PRINT LEFTPAREN INTEGER RIGHTPAREN SEMICOLON {}
-           | EXTERN INTEGER READ LEFTPAREN RIGHTPAREN SEMICOLON {}
-           | RETURN LEFTPAREN expression RIGHTPAREN SEMICOLON {}
+statement  : EXTERN VOID PRINT LPAREN INTEGER RPAREN SEMICOLON {}
+           | EXTERN INTEGER READ LPAREN RPAREN SEMICOLON {}
+           | RETURN LPAREN term RPAREN SEMICOLON {}
+           | RETURN term SEMICOLON {}
            | RETURN expression SEMICOLON {}
-           | INTEGER VARIABLE EQUAL expression {}
+           | INTEGER VARIABLE EQUAL term {}
            | INTEGER VARIABLE SEMICOLON {}
+           | VARIABLE EQUAL term SEMICOLON {}
            | VARIABLE EQUAL expression SEMICOLON {}
-           | INTEGER FUNC LEFTPAREN INTEGER VARIABLE RIGHTPAREN LEFTCURL statements RIGHTCURL {}
-           | WHILE LEFTPAREN condition RIGHTPAREN LEFTCURL statements RIGHTCURL {}
-           | IF LEFTPAREN condition RIGHTPAREN LEFTCURL statements RIGHTCURL {}
-           | IF LEFTPAREN condition RIGHTPAREN LEFTCURL statements RIGHTCURL ELSE LEFTCURL statements RIGHTCURL {}
+           | INTEGER FUNC LPAREN INTEGER VARIABLE RPAREN LCURL statements RCURL {}
+           | WHILE LPAREN condition RPAREN LCURL statements RCURL {}
+           | IF LPAREN condition RPAREN LCURL statements RCURL {}
+           | IF LPAREN condition RPAREN LCURL statements RCURL ELSE LCURL statements RCURL {}
            | function SEMICOLON
 
-function   : READ LEFTPAREN RIGHTPAREN {}
-           | VARIABLE EQUAL READ LEFTPAREN RIGHTPAREN {} 
-           | PRINT LEFTPAREN expression RIGHTPAREN {}   
+function   : READ LPAREN RPAREN {}
+           | VARIABLE EQUAL READ LPAREN RPAREN {} 
+           | PRINT LPAREN term RPAREN {}   
 
-expression : NUM {}
-           | VARIABLE {}
-           | expression ADD expression {}
-           | expression SUBTRACT expression {}
-           | expression MULT expression {}
-           | expression DIV expression {}
+expression  : term ADD term           { $$ = createBExpr($1, $3, add); }
+            | term SUBTRACT term      { $$ = createBExpr($1, $3, sub); }
+            | term MULT term          { $$ = createBExpr($1, $3, mul); }
+            | term DIV term           { $$ = createBExpr($1, $3, divide); }
 
-condition  : expression GREATER expression {}
-           | expression LESS expression {}
-           | expression EQUAL expression {}
+condition   : term GREATER term {}
+            | term LESS term {}
+            | term EQUAL term {}
+
+term        : NUM               { $$ = createCnst($1);}
+            | VARIABLE          { $$ = createVar($1);} 
+
+
+
  
 %%
 int yyerror(const char *s) {

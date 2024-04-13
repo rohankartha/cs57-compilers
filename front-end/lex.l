@@ -2,6 +2,7 @@
     #include <stdio.h>
     #include <stdbool.h>
     #include <string.h>
+    #include "ast/ast.h"
     #include "y.tab.h"
 %}
 %%
@@ -80,16 +81,16 @@
     /* miscellaneous */
 [(){};]     {
                 if (strcmp("(", yytext) == 0) {
-                    return LEFTPAREN;
+                    return LPAREN;
                 }
                 else if (strcmp(")", yytext) == 0) {
-                    return RIGHTPAREN;
+                    return RPAREN;
                 }
                 else if (strcmp("{", yytext) == 0) {
-                    return LEFTCURL;
+                    return LCURL;
                 }
                 else if (strcmp("}", yytext) == 0) {
-                    return RIGHTCURL;
+                    return RCURL;
                 }
                 else if (strcmp(";", yytext) == 0) {
                     return SEMICOLON;
