@@ -65,7 +65,7 @@
                 }
             }
     /* comparisons */
-[<>=]       {
+[<>=!]       {
                 if (strcmp("<", yytext) == 0) {
                     return LESS;
                 }
@@ -74,6 +74,9 @@
                 }
                 else if (strcmp("=", yytext) == 0) {
                     return EQUAL;
+                }
+                else if (strcmp("!", yytext) == 0) {
+                    return EXCLAM;
                 }
             }
     /* whitespace */

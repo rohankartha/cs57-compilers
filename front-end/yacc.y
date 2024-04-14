@@ -16,8 +16,8 @@
 %union{
     int ival;
     char* svar;
-    bool boolean;
     astNode* nodeptr;
+    vector<astNode*> *node_vector; 
 }
 
 %token IF WHILE ELSE RETURN INTEGER EXTERN VOID PRINT READ FUNC
@@ -28,55 +28,92 @@
 %left ADD SUBTRACT 
 %left MULT DIV
 
-%token GREATER LESS EQUAL
+%token GREATER LESS EQUAL EXCLAM
 %token LPAREN RPAREN LCURL RCURL
 %token SEMICOLON
 
-
-%type <boolean> condition
-%type <nodeptr> block statement declaration expression term
+%type <node_vector> declarations statements
+%type <nodeptr> block statement declaration expression term function program condition
 
 
 /* add to statements: custom functions */
 %%
 
-statements : statements statement
-           | statement 
+program     : EXTERN VOID PRINT LPAREN INTEGER RPAREN SEMICOLON {}
+            | program EXTERN INTEGER READ LPAREN RPAREN SEMICOLON {}
+            | program INTEGER FUNC LPAREN INTEGER VARIABLE RPAREN LCURL block RCURL {
+                                                                                astNode* print_func = createExtern("print");
+                                                                                astNode* read_func = createExtern("read");
+                                                                                astNode* param = createVar($6);
+                                                                                astNode* new_func = createFunc("func", param, $9);
+                                                                                $$ = createProg(print_func, read_func, new_func);
+                                                                            }
 
-statement  : EXTERN VOID PRINT LPAREN INTEGER RPAREN SEMICOLON {}
-           | EXTERN INTEGER READ LPAREN RPAREN SEMICOLON {}
-           | RETURN LPAREN term RPAREN SEMICOLON {}
-           | RETURN term SEMICOLON {}
-           | RETURN expression SEMICOLON {}
-           | INTEGER VARIABLE EQUAL term {}
-           | INTEGER VARIABLE SEMICOLON {}
-           | VARIABLE EQUAL term SEMICOLON {}
-           | VARIABLE EQUAL expression SEMICOLON {}
-           | INTEGER FUNC LPAREN INTEGER VARIABLE RPAREN LCURL statements RCURL {}
-           | WHILE LPAREN condition RPAREN LCURL statements RCURL {}
-           | IF LPAREN condition RPAREN LCURL statements RCURL {}
-           | IF LPAREN condition RPAREN LCURL statements RCURL ELSE LCURL statements RCURL {}
-           | function SEMICOLON
+block       : declarations statements       {
+                                                vector<astNode*> *block = new vector<astNode*>();
+                                                block->insert(block->end(), $1->begin(), $1->end());
+                                                block->insert(block->end(), $2->begin(), $2->end());
+                                                $$ = createBlock(block);
+                                                printNode($$)
+                                            }
+            | statements                    {
+                                                $$ = createBlock($1);
+                                            }
 
-function   : READ LPAREN RPAREN {}
-           | VARIABLE EQUAL READ LPAREN RPAREN {} 
-           | PRINT LPAREN term RPAREN {}   
+declarations: declarations declaration  {
+                                            $$ = $1;
+                                            $$->push_back($2);
+                                        }
+            | declaration               { 
+                                            $$ = new vector<astNode*>(); 
+                                            $$->push_back($1);
+                                        }  
+ 
+declaration : INTEGER VARIABLE SEMICOLON { $$ = createDecl($2); }
+
+statements  : statements statement      {
+                                            $$ = $1;
+                                            $$->push_back($2);
+                                        }
+            | statement                 {
+                                            $$ = new vector<astNode*>();
+                                            $$->push_back($1);
+                                        }
+
+statement   : RETURN LPAREN term RPAREN SEMICOLON {}
+            | RETURN term SEMICOLON {}
+            | RETURN expression SEMICOLON                              { $$ = createRet($2); }
+            | RETURN LPAREN expression RPAREN SEMICOLON                              { $$ = createRet($3); }
+            | term EQUAL term SEMICOLON                            { $$ = createAsgn($1, $3); }
+            | term EQUAL expression SEMICOLON                      { $$ = createAsgn($1, $3); }
+            | WHILE LPAREN condition RPAREN LCURL block RCURL                         { $$ = createWhile($3, $6); }
+            | IF LPAREN condition RPAREN LCURL block RCURL ELSE LCURL statement RCURL { $$ = createIf($3, $6, $10); }
+            | IF LPAREN condition RPAREN LCURL block RCURL                            { $$ = createIf($3, $6, NULL); }
+            | function SEMICOLON
+
+function    : READ LPAREN RPAREN                    { $$ = createCall("read", NULL); }
+            | term EQUAL function               { $$ = createAsgn($1, $3); } 
+            | PRINT LPAREN term RPAREN              { $$ = createCall("print", $3); }   
 
 expression  : term ADD term           { $$ = createBExpr($1, $3, add); }
             | term SUBTRACT term      { $$ = createBExpr($1, $3, sub); }
             | term MULT term          { $$ = createBExpr($1, $3, mul); }
             | term DIV term           { $$ = createBExpr($1, $3, divide); }
 
-condition   : term GREATER term {}
-            | term LESS term {}
-            | term EQUAL term {}
+condition   : term GREATER term             { $$ = createRExpr($1, $3, gt); }
+            | term LESS term                { $$ = createRExpr($1, $3, lt); }
+            | term EQUAL EQUAL term         { $$ = createRExpr($1, $4, eq); }
+            | term GREATER EQUAL term       { $$ = createRExpr($1, $4, ge); }
+            | term LESS EQUAL term          { $$ = createRExpr($1, $4, le); }
+            | term EXCLAM EQUAL term        { $$ = createRExpr($1, $4, neq); }
 
 term        : NUM               { $$ = createCnst($1);}
             | VARIABLE          { $$ = createVar($1);} 
+            | SUBTRACT term     { $$ = createUExpr($2, uminus); }
 
 
 
- 
+
 %%
 int yyerror(const char *s) {
     fprintf(stderr, "%s\n", s);

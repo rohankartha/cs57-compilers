@@ -18,15 +18,16 @@ syntaxanalyzer: $(YACCFILENAME).y $(LEXFILENAME).l
 # 	yacc -v -d -t --debug -Wcounterexamples $(YACCFILENAME).y
 # 	lex -d $(LEXFILENAME).l
 # 	gcc $(LEXOUTPUT) $(YACCOUTPUT) -o syntaxanalyzer
+# ./syntaxanalyzer parser_tests/p5.c 2> error.txt
 
 
 
 
 
 test: 
-	./syntaxanalyzer parser_tests/p5.c 2> error.txt
+	./parsertests.sh
 
 clean:
-	rm -rf syntaxanalyzer lex.yy.c y.tab.c y.tab.h y.output lex.out error.txt
+	rm -rf syntaxanalyzer lex.yy.c y.tab.c y.tab.h y.output lex.out error1.txt error2.txt error3.txt error4.txt error5.txt testtree.txt
 
 
