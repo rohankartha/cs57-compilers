@@ -12,7 +12,9 @@
     extern int yytext;
     int yyerror(const char *);
     extern FILE* yyin;
+    extern astNode* root;
 %}
+
 %union{
     int ival;
     char* svar;
@@ -46,7 +48,8 @@ program     : EXTERN VOID PRINT LPAREN INTEGER RPAREN SEMICOLON {}
                                                                                 astNode* read_func = createExtern("read");
                                                                                 astNode* param = createVar($6);
                                                                                 astNode* new_func = createFunc("func", param, $9);
-                                                                                $$ = createProg(NULL, NULL, new_func);
+                                                                                root = createProg(print_func, read_func, new_func);
+                                                                                $$ = root;
                                                                                 printNode($$);
                                                                             }
 
@@ -111,31 +114,8 @@ term        : NUM               { $$ = createCnst($1);}
             | VARIABLE          { $$ = createVar($1);} 
             | SUBTRACT term     { $$ = createUExpr($2, uminus); }
 
-
-
-
 %%
 int yyerror(const char *s) {
     fprintf(stderr, "%s\n", s);
     return 0;
 }
-
-int main(int argc, char* argv[]) {
-    #ifdef YYDEBUG
-      yydebug = 1;
-  #endif
-    if (argc == 2) {
-        yyin = fopen(argv[1], "r");
-        if (yyin == NULL) {
-            fprintf(stderr, "File open error");
-            return 1;
-        }
-    }
-    yyparse();
-    if (argc == 2) {
-        fclose(yyin);
-    }
-    yylex_destroy();
-    return 0;
-}
-
