@@ -46,7 +46,8 @@ program     : EXTERN VOID PRINT LPAREN INTEGER RPAREN SEMICOLON {}
                                                                                 astNode* read_func = createExtern("read");
                                                                                 astNode* param = createVar($6);
                                                                                 astNode* new_func = createFunc("func", param, $9);
-                                                                                $$ = createProg(print_func, read_func, new_func);
+                                                                                $$ = createProg(NULL, NULL, new_func);
+                                                                                printNode($$);
                                                                             }
 
 block       : declarations statements       {
@@ -54,7 +55,6 @@ block       : declarations statements       {
                                                 block->insert(block->end(), $1->begin(), $1->end());
                                                 block->insert(block->end(), $2->begin(), $2->end());
                                                 $$ = createBlock(block);
-                                                printNode($$)
                                             }
             | statements                    {
                                                 $$ = createBlock($1);
