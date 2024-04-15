@@ -4,6 +4,7 @@ YACCOUTPUT = y.tab.c
 COMPILER = compiler.c
 AST = ast/ast.c
 YACCHEADER = y.tab.h
+SEMANALYSIS = semantic-analysis.c
 
 .PHONY: clean test
 
@@ -14,7 +15,7 @@ syntaxanalyzer: yacc.y lex.l
 
 # Build and execute the compiler program
 compiler: $(YACCHEADER)
-	g++ $(COMPILER) $(AST) $(YACCOUTPUT) $(LEXOUTPUT) -o compiler
+	g++ -g $(COMPILER) $(SEMANALYSIS) $(AST) $(YACCOUTPUT) $(LEXOUTPUT) -o compiler
 
 test: 
 	./parsertests.sh

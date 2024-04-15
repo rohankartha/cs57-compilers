@@ -50,7 +50,7 @@ program     : EXTERN VOID PRINT LPAREN INTEGER RPAREN SEMICOLON {}
                                                                                 astNode* new_func = createFunc("func", param, $9);
                                                                                 root = createProg(print_func, read_func, new_func);
                                                                                 $$ = root;
-                                                                                printNode($$);
+                                                                                //printNode($$);
                                                                             }
 
 block       : declarations statements       {
@@ -84,7 +84,7 @@ statements  : statements statement      {
                                         }
 
 statement   : RETURN LPAREN term RPAREN SEMICOLON {}
-            | RETURN term SEMICOLON {}
+            | RETURN term SEMICOLON                 { $$ = createRet($2); }
             | RETURN expression SEMICOLON                              { $$ = createRet($2); }
             | RETURN LPAREN expression RPAREN SEMICOLON                              { $$ = createRet($3); }
             | term EQUAL term SEMICOLON                            { $$ = createAsgn($1, $3); }

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <cstddef>
 #include <vector>
+#include "semantic-analysis.h"
 extern FILE* yyin;
 extern int yylex_destroy();
 
@@ -24,6 +25,8 @@ int main(int argc, char* argv[]) {
         fclose(yyin);
     }
     yylex_destroy();
+
+    semanticAnalysis();
 
     
 
