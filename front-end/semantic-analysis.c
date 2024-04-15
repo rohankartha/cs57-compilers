@@ -15,7 +15,8 @@ void semanticAnalysis();
 bool analyzeNode(stack<vector<char*>> *stStack, ast_Node* node);
 void analyzeFuncNode(stack<vector<char*>> *stStack, astFunc func);
 bool analyzeVarNode(stack<vector<char*>> *stStack, astVar variable);
-void analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt);
+bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt);
+void analyzeOtherNode(stack<vector<char*>> *stStack, astNode* node);
 
 // Assumptions: root node is program node
 void semanticAnalysis() 
@@ -44,7 +45,6 @@ bool analyzeNode(stack<vector<char*>> *stStack, ast_Node* node)
         
         case ast_prog:
             analyzeNode(stStack, root->prog.func);
-            printf("TEST");
             return true;
             break;
 
@@ -60,15 +60,19 @@ bool analyzeNode(stack<vector<char*>> *stStack, ast_Node* node)
 
         // If node is constant node
         case ast_var:
+            printf("ASDFASDFASD");
             analyzeVarNode(stStack, node->var);
             break;
         
         // If node another type
         default:
+            analyzeOtherNode(stStack, node);
             break;
     }
 }
 
+
+/***************** analyzeFuncNode ***********************/
 void analyzeFuncNode(stack<vector<char*>> *stStack, astFunc func) 
 {
     printf("func\n");
@@ -96,9 +100,10 @@ void analyzeFuncNode(stack<vector<char*>> *stStack, astFunc func)
 }
 
 
+/***************** analyzeVarNode ***********************/
 bool analyzeVarNode(stack<vector<char*>> *stStack, astVar variable) 
 {
-    printf("cnst\n");
+    printf("var\n");
     // Get name of variable
     char* varName = variable.name;
 
@@ -128,7 +133,9 @@ bool analyzeVarNode(stack<vector<char*>> *stStack, astVar variable)
     // EMIT ERROR WITH NAME OF VARIABLE
 }
 
-void analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt) 
+
+/***************** analyzeStmtNode ***********************/
+bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt) 
 {
     printf("stmt\n");
 
@@ -152,27 +159,33 @@ void analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt)
     
     else if (stmt.type == ast_decl) {
         astDecl declaration = stmt.decl;
-        char* name = declaration.name;
+        char* variableName = declaration.name;
+        vector<char*> curr_sym_table;
 
         // Checking if variable is in the symbol table at the top of the stack
-        vector<char*> curr_sym_table = stStack->top();
-        char* variable = curr_sym_table.at(0);
+        if (!stStack->top().empty()) {
+            curr_sym_table = stStack->top();
 
-        // Throw error if true
-        if (strcmp(name, variable) == 0) {
-            //THROW ERROR
+            for (int i = 0; i < curr_sym_table.size(); i++) {
+                char* name = curr_sym_table.at(i);
+
+                // Throw error if true
+                if (strcmp(name, variableName) == 0) {
+                    return true; 
+                }
+            }
         }
 
         // Otherwise, add symbol at the top of the stack
-        else {
-            curr_sym_table.push_back(name);
-        }
+        curr_sym_table.push_back(variableName);
     }
 }
 
 
+/***************** analyzeOtherNode ***********************/
 void analyzeOtherNode(stack<vector<char*>> *stStack, astNode* node) 
 {
+    printf("other\n");
     switch (node->type) {
         case ast_rexpr:
             analyzeNode(stStack, node->rexpr.lhs);
