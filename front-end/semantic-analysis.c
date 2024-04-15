@@ -11,27 +11,26 @@
 using namespace std;
 
 extern astNode* root;
-void semanticAnalysis();
+bool semanticAnalysis();
 bool analyzeNode(stack<vector<char*>> *stStack, ast_Node* node);
-void analyzeFuncNode(stack<vector<char*>> *stStack, astFunc func);
+bool analyzeFuncNode(stack<vector<char*>> *stStack, astFunc func);
 bool analyzeVarNode(stack<vector<char*>> *stStack, astVar variable);
-bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt);
-void analyzeOtherNode(stack<vector<char*>> *stStack, astNode* node);
+bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt, int code);
+bool analyzeOtherNode(stack<vector<char*>> *stStack, astNode* node);
 
 // Assumptions: root node is program node
-void semanticAnalysis() 
+bool semanticAnalysis() 
 {
     // Creating stack to hold symbol tables
     stack<vector<char*>> *stStack = new stack<vector<char*>>();
 
     // Starting traversal at AST root
-    analyzeNode(stStack, root);
+    bool semanticAnalysisResult = analyzeNode(stStack, root);
+    return semanticAnalysisResult;
 }
 
 
-
 // each node has a type, using node access member of union, from member of union access children. think of prog like glasses
-
 
 /***************** analyzeNode ***********************/
 bool analyzeNode(stack<vector<char*>> *stStack, ast_Node* node)
@@ -41,62 +40,80 @@ bool analyzeNode(stack<vector<char*>> *stStack, ast_Node* node)
         return false;
     }
 
+    bool result;
+
     switch(node->type) {
         
         case ast_prog:
-            analyzeNode(stStack, root->prog.func);
-            return true;
+            printf("prog\n");
+            result = analyzeNode(stStack, root->prog.func);
+            if (!result) { return false; }
             break;
 
         // If node is statement node
         case ast_stmt:
-            analyzeStmtNode(stStack, node->stmt);
+            result = analyzeStmtNode(stStack, node->stmt, 1);
+            if (!result) { return false; }
             break;
         
         // If node is function node
         case ast_func:
-            analyzeFuncNode(stStack, node->func);
+            result = analyzeFuncNode(stStack, node->func);
+            if (!result) { return false; }
             break;
 
-        // If node is constant node
+        // If node is variable node
         case ast_var:
-            printf("ASDFASDFASD");
-            analyzeVarNode(stStack, node->var);
+            result = analyzeVarNode(stStack, node->var);
+            if (!result) { return false; }
             break;
         
         // If node another type
         default:
-            analyzeOtherNode(stStack, node);
+            result = analyzeOtherNode(stStack, node);
+            if (!result) { return false; }
             break;
     }
+    return true;
 }
 
 
 /***************** analyzeFuncNode ***********************/
-void analyzeFuncNode(stack<vector<char*>> *stStack, astFunc func) 
+bool analyzeFuncNode(stack<vector<char*>> *stStack, astFunc func) 
 {
     printf("func\n");
 
     // Creating new symbol table and pushing it onto stack
-    vector<char*> *curr_sym_table = new vector<char*>();
-    stStack->push(*curr_sym_table);
+    vector<char*> curr_sym_table;
+    stStack->push(curr_sym_table);
 
     // Adding parameter to symbol table if applicable
     astNode* node;
     if ((node = func.param) != NULL) {
         char* name = ((func.param)->var).name;
-        curr_sym_table->push_back(name);           
+        curr_sym_table.push_back(name);           
     }
+
+    // Updating copy of table on the stack
+    if (!stStack->empty()) {
+        stStack->pop();
+    }
+    
+    stStack->push(curr_sym_table);
 
     // Extracting statements from function body
     astNode* body = func.body;
     astStmt stmt = body->stmt;
 
     // Visiting body of the function node
-    analyzeStmtNode(stStack, stmt);
+    bool result = analyzeStmtNode(stStack, stmt, 0);
+    if (!result) { return false; }
 
     // Pop top of stack
-    stStack->pop();
+    if (!stStack->empty()) {
+        stStack->pop();
+    }
+    return true;
 }
 
 
@@ -106,101 +123,189 @@ bool analyzeVarNode(stack<vector<char*>> *stStack, astVar variable)
     printf("var\n");
     // Get name of variable
     char* varName = variable.name;
+    printf("Proposed variable %s\n", varName);
 
     // Check if variable appears in a symbol table on a copy of the stack
     stack<vector<char*>> copyStack(*stStack);
     vector<char*> copySymTable;
 
-    while (!copyStack.top().empty()) {
+
+    while (!copyStack.empty()) {
 
         // Getting symbol table at the top of the copy stack
         copySymTable = copyStack.top();
 
-        for (int i = 0; i < copySymTable.size(); i++) {
+        for (int i = 0; i < copySymTable.size(); ++i) {
             char* name = copySymTable.at(i);
 
             // Return true if the variable is found in a symbol table
+            printf("%s, %s: ", varName, name);
             if (strcmp(varName, name) == 0) {
+                printf("NO ERROR\n");
                 return true;
             }
-            // Removing symbol table from copy stack
+        }
+        // Removing symbol table from copy stack
+        if (!copyStack.empty()) {
             copyStack.pop();
         }
     }
+    
     // If false, throw an error
+    fprintf(stderr, "ERROR: variable '%s' has not been declared\n", varName);
     return false;
-
-    // EMIT ERROR WITH NAME OF VARIABLE
 }
 
 
 /***************** analyzeStmtNode ***********************/
-bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt) 
+bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt, int code) 
 {
-    printf("stmt\n");
-
     if (stmt.type == ast_block) {
+        printf("block\n");
 
-        // Creating new symbol table and pushing it onto stack
-        vector<char*> *curr_sym_table = new vector<char*>();
-        stStack->push(*curr_sym_table);
+        if (code == 1) {
+            printf("NOT FUNC\n");
+
+            // Creating new symbol table and pushing it onto stack
+            vector<char*> curr_sym_table;
+            stStack->push(curr_sym_table);
+        }
 
         // Visiting all statement nodes in the block
         astBlock block = stmt.block;
         vector<astNode*> *statementList = block.stmt_list;
         for (int i = 0; i != statementList->size(); ++i) {
             astNode* statement = statementList->at(i);
-            analyzeNode(stStack, statement);
+            bool result = analyzeNode(stStack, statement);
+
+            if (!result) { return false; }
         }
 
         // Popping symbol table off of the stack
-        stStack->pop();
+        if (!stStack->empty()) {
+            stStack->pop();
+        }
+        
     }
     
     else if (stmt.type == ast_decl) {
+        printf("decl\n");
         astDecl declaration = stmt.decl;
         char* variableName = declaration.name;
         vector<char*> curr_sym_table;
 
         // Checking if variable is in the symbol table at the top of the stack
-        if (!stStack->top().empty()) {
+        if (!stStack->empty()) {
             curr_sym_table = stStack->top();
 
             for (int i = 0; i < curr_sym_table.size(); i++) {
                 char* name = curr_sym_table.at(i);
 
-                // Throw error if true
+                // Throw error if false
                 if (strcmp(name, variableName) == 0) {
-                    return true; 
+                    printf("\nERROR: %s, %s\n", name, variableName);
+                    return false; 
                 }
             }
         }
-
         // Otherwise, add symbol at the top of the stack
         curr_sym_table.push_back(variableName);
+
+        // Replace old symbol table on stack with updated version
+        if (!stStack->empty()) {
+            stStack->pop();
+        }
+        stStack->push(curr_sym_table);
     }
+
+
+    else if (stmt.type == ast_call) {
+        printf("call\n");
+        astCall call = stmt.call;
+
+        if (call.param != NULL) {
+            bool result = analyzeNode(stStack, call.param);
+            if (!result) { return false; }
+        }
+    }
+
+    else if (stmt.type == ast_ret) {
+        printf("ret\n");
+        astRet ret = stmt.ret;
+        bool result = analyzeNode(stStack, ret.expr);
+        if (!result) { return false; }
+    }
+
+    else if (stmt.type == ast_while) {
+        printf("while\n");
+        astWhile whileStmt = stmt.whilen;
+        bool result = analyzeNode(stStack, whileStmt.cond);
+        if (!result) { return false; }
+    }
+
+    else if (stmt.type == ast_if) {
+        printf("if\n");
+        astIf ifStmt = stmt.ifn;
+        bool result;
+
+        result = analyzeNode(stStack, ifStmt.cond);
+        if (!result) { return false; }
+
+        result = analyzeNode(stStack, ifStmt.if_body);
+        if (!result) { return false; }
+
+        result = analyzeNode(stStack, ifStmt.else_body);
+        if (!result) { return false; }
+
+        return true;
+    }
+
+    else if (stmt.type == ast_asgn) {
+        printf("asgn\n");
+        astAsgn asgn = stmt.asgn;
+        bool result;
+
+        result = analyzeNode(stStack, asgn.lhs);
+        if (!result) { return false; }
+
+        result = analyzeNode(stStack, asgn.rhs);
+        if (!result) { return false; }
+    }
+    return true;
 }
 
 
 /***************** analyzeOtherNode ***********************/
-void analyzeOtherNode(stack<vector<char*>> *stStack, astNode* node) 
+bool analyzeOtherNode(stack<vector<char*>> *stStack, astNode* node) 
 {
     printf("other\n");
+    bool result; 
+
     switch (node->type) {
         case ast_rexpr:
-            analyzeNode(stStack, node->rexpr.lhs);
-            analyzeNode(stStack, node->rexpr.rhs);
+            result = analyzeNode(stStack, node->rexpr.lhs);
+            if (!result) { return false; }
+
+            result = analyzeNode(stStack, node->rexpr.rhs);
+            if (!result) { return false; }
+
             break;
 
         // Visiting children nodes of binary expression node
         case ast_bexpr:
-            analyzeNode(stStack, node->bexpr.lhs);
-            analyzeNode(stStack, node->bexpr.rhs);
+            result = analyzeNode(stStack, node->bexpr.lhs);
+            if (!result) { return false; }
+            
+            result = analyzeNode(stStack, node->bexpr.rhs);
+            if (!result) { return false; }
+
             break;
 
         // Visiting children nodes of unary expression node
         case ast_uexpr:
-            analyzeNode(stStack, node->uexpr.expr);
+            result = analyzeNode(stStack, node->uexpr.expr);
+            if (!result) { return false; }
             break;
     }
+    return true;
 }

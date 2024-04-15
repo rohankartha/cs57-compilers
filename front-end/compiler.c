@@ -26,7 +26,14 @@ int main(int argc, char* argv[]) {
     }
     yylex_destroy();
 
-    semanticAnalysis();
+    bool result = semanticAnalysis();
+
+    if (result) {
+        printf("Successfully parsed\n");
+    }
+    else {
+        printf("Error with parsing\n");
+    }
 
     
 
