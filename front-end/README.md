@@ -9,11 +9,17 @@
 ### Files
 
 `/ast`: third-party dependency which provides abstract syntax tree data structure
+
 `compiler.c`: driver program for the mini-c compiler
+
 `lex.l`: defines how character patterns are tokenize
+
 `yacc.y`: defines grammar rules for tokens
+
 `semantic-analysis.c`: checks that variables are declared and used in correct scope
+
 `testing`: contains test mini-c files and empty folder where output is printed when tests are printed.
+
 `parsertest.sh`: testing script for the front-end
 
 ```none
