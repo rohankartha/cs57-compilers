@@ -5,7 +5,11 @@
 #include <cstring>
 using namespace std;
 
+
+/**************** global variables ****************/
 extern astNode* root;
+
+/**************** function prototypes ****************/
 bool semanticAnalysis();
 bool analyzeNode(stack<vector<char*>> *stStack, ast_Node* node);
 bool analyzeFuncNode(stack<vector<char*>> *stStack, astFunc func);

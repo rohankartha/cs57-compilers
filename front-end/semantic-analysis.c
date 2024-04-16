@@ -1,5 +1,9 @@
 /**
+ * semantic-analysis.c – Semantic analyzer for compiler. From the abstract syntax tree,
+ * the analyzer checks two conditions: (1) a variable is declared before it is used; (2)
+ * here is only one declaration of the variable in a scope
  * 
+ * Rohan Kartha, April 2024
  * 
 */
 
@@ -10,7 +14,10 @@
 #include <cstring>
 using namespace std;
 
+/**************** global variables ****************/
 extern astNode* root;
+
+/**************** function prototypes ****************/
 bool semanticAnalysis();
 bool analyzeNode(stack<vector<char*>> *stStack, ast_Node* node);
 bool analyzeFuncNode(stack<vector<char*>> *stStack, astFunc func);
@@ -19,6 +26,9 @@ bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt, int code);
 bool analyzeOtherNode(stack<vector<char*>> *stStack, astNode* node);
 
 // Assumptions: root node is program node
+
+
+/**************** semanticAnalysis ****************/
 bool semanticAnalysis() 
 {
     // Creating stack to hold symbol tables
@@ -31,9 +41,6 @@ bool semanticAnalysis()
     delete stStack;
     return semanticAnalysisResult;
 }
-
-
-// each node has a type, using node access member of union, from member of union access children. think of prog like glasses
 
 /***************** analyzeNode ***********************/
 bool analyzeNode(stack<vector<char*>> *stStack, ast_Node* node)
@@ -118,16 +125,14 @@ bool analyzeFuncNode(stack<vector<char*>> *stStack, astFunc func)
 /***************** analyzeVarNode ***********************/
 bool analyzeVarNode(stack<vector<char*>> *stStack, astVar variable) 
 {
-    printf("var\n");
     // Get name of variable
     char* varName = variable.name;
-    printf("Proposed variable %s\n", varName);
 
     // Check if variable appears in a symbol table on a copy of the stack
     stack<vector<char*>> copyStack(*stStack);
     vector<char*> copySymTable;
 
-
+    // Look through symbol tables in stack for variable
     while (!copyStack.empty()) {
 
         // Getting symbol table at the top of the copy stack
@@ -137,9 +142,7 @@ bool analyzeVarNode(stack<vector<char*>> *stStack, astVar variable)
             char* name = copySymTable.at(i);
 
             // Return true if the variable is found in a symbol table
-            printf("%s, %s: ", varName, name);
             if (strcmp(varName, name) == 0) {
-                printf("NO ERROR\n");
                 return true;
             }
         }
@@ -148,8 +151,7 @@ bool analyzeVarNode(stack<vector<char*>> *stStack, astVar variable)
             copyStack.pop();
         }
     }
-    
-    // If false, throw an error
+    // If variable is not found, throw an error
     fprintf(stderr, "ERROR: variable '%s' has not been declared\n", varName);
     return false;
 }
@@ -158,20 +160,20 @@ bool analyzeVarNode(stack<vector<char*>> *stStack, astVar variable)
 /***************** analyzeStmtNode ***********************/
 bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt, int code) 
 {
+    // Case 1: the statement is a block statement
     if (stmt.type == ast_block) {
-        printf("block\n");
 
+        // Creating new symbol table and pushing it onto stack if block is not the body of a function
         if (code == 1) {
-            printf("NOT FUNC\n");
-
-            // Creating new symbol table and pushing it onto stack
             vector<char*> curr_sym_table;
             stStack->push(curr_sym_table);
         }
 
-        // Visiting all statement nodes in the block
+        // Get list of statements which make up the block
         astBlock block = stmt.block;
         vector<astNode*> *statementList = block.stmt_list;
+
+        // Visit each statement node
         for (int i = 0; i != statementList->size(); ++i) {
             astNode* statement = statementList->at(i);
             bool result = analyzeNode(stStack, statement);
@@ -183,11 +185,12 @@ bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt, int code)
         if (!stStack->empty()) {
             stStack->pop();
         }
-        
     }
     
+    // Case 2: the statement is a declaration statement
     else if (stmt.type == ast_decl) {
-        printf("decl\n");
+
+        // Extract the name of the new variable from the declaration
         astDecl declaration = stmt.decl;
         char* variableName = declaration.name;
         vector<char*> curr_sym_table;
@@ -199,9 +202,9 @@ bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt, int code)
             for (int i = 0; i < curr_sym_table.size(); i++) {
                 char* name = curr_sym_table.at(i);
 
-                // Throw error if false
+                // Throw error if variable is already in the table (i.e. it has already been declared)
                 if (strcmp(name, variableName) == 0) {
-                    printf("\nERROR: %s, %s\n", name, variableName);
+                    printf("\nERROR: %s has already been declared in this scope\n", variableName);
                     return false; 
                 }
             }
@@ -216,9 +219,10 @@ bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt, int code)
         stStack->push(curr_sym_table);
     }
 
+    // For all other statement node types, visit children nodes
 
+    // Case 3: the statement is a call statement
     else if (stmt.type == ast_call) {
-        printf("call\n");
         astCall call = stmt.call;
 
         if (call.param != NULL) {
@@ -227,22 +231,22 @@ bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt, int code)
         }
     }
 
+    // Case 4: the statement is a return statement
     else if (stmt.type == ast_ret) {
-        printf("ret\n");
         astRet ret = stmt.ret;
         bool result = analyzeNode(stStack, ret.expr);
         if (!result) { return false; }
     }
 
+    // Case 5: the statement is a while statement
     else if (stmt.type == ast_while) {
-        printf("while\n");
         astWhile whileStmt = stmt.whilen;
         bool result = analyzeNode(stStack, whileStmt.cond);
         if (!result) { return false; }
     }
 
+    // Case 6: the statement is an if statement
     else if (stmt.type == ast_if) {
-        printf("if\n");
         astIf ifStmt = stmt.ifn;
         bool result;
 
@@ -260,8 +264,8 @@ bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt, int code)
         return true;
     }
 
+    // Case 7: the statement is an assign statement
     else if (stmt.type == ast_asgn) {
-        printf("asgn\n");
         astAsgn asgn = stmt.asgn;
         bool result;
 
@@ -278,10 +282,11 @@ bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt, int code)
 /***************** analyzeOtherNode ***********************/
 bool analyzeOtherNode(stack<vector<char*>> *stStack, astNode* node) 
 {
-    printf("other\n");
     bool result; 
 
     switch (node->type) {
+
+        // Visiting children nodes of comparison expression node
         case ast_rexpr:
             result = analyzeNode(stStack, node->rexpr.lhs);
             if (!result) { return false; }

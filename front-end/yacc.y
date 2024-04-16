@@ -38,20 +38,19 @@
 %type <nodeptr> block statement declaration expression term function program condition
 
 
-/* add to statements: custom functions */
+/* Grammar rules */
 %%
 
 program     : EXTERN VOID PRINT LPAREN INTEGER RPAREN SEMICOLON {}
             | program EXTERN INTEGER READ LPAREN RPAREN SEMICOLON {}
             | program INTEGER FUNC LPAREN INTEGER VARIABLE RPAREN LCURL block RCURL {
-                                                                                astNode* print_func = createExtern("print");
-                                                                                astNode* read_func = createExtern("read");
-                                                                                astNode* param = createVar($6);
-                                                                                astNode* new_func = createFunc("func", param, $9);
-                                                                                root = createProg(print_func, read_func, new_func);
-                                                                                $$ = root;
-                                                                                //printNode($$);
-                                                                            }
+                                                                                        astNode* print_func = createExtern("print");
+                                                                                        astNode* read_func = createExtern("read");
+                                                                                        astNode* param = createVar($6);
+                                                                                        astNode* new_func = createFunc("func", param, $9);
+                                                                                        root = createProg(print_func, read_func, new_func);
+                                                                                        $$ = root;
+                                                                                    }
 
 block       : declarations statements       {
                                                 vector<astNode*> *block = new vector<astNode*>();
@@ -61,44 +60,30 @@ block       : declarations statements       {
                                                 delete($1);
                                                 delete($2);
                                             }
-            | statements                    {
-                                                $$ = createBlock($1);
-                                            }
+            | statements                    { $$ = createBlock($1); }
 
-declarations: declarations declaration  {
-                                            $$ = $1;
-                                            $$->push_back($2);
-                                        }
-            | declaration               { 
-                                            $$ = new vector<astNode*>(); 
-                                            $$->push_back($1);
-                                        }  
+declarations: declarations declaration   { $$ = $1; $$->push_back($2); }
+            | declaration                { $$ = new vector<astNode*>(); $$->push_back($1); }  
  
 declaration : INTEGER VARIABLE SEMICOLON { $$ = createDecl($2); }
 
-statements  : statements statement      {
-                                            $$ = $1;
-                                            $$->push_back($2);
-                                        }
-            | statement                 {
-                                            $$ = new vector<astNode*>();
-                                            $$->push_back($1);
-                                        }
+statements  : statements statement       { $$ = $1; $$->push_back($2); }
+            | statement                  { $$ = new vector<astNode*>(); $$->push_back($1); }
 
-statement   : RETURN LPAREN term RPAREN SEMICOLON { $$ = createRet($3); }
-            | RETURN term SEMICOLON                 { $$ = createRet($2); }
-            | RETURN expression SEMICOLON                              { $$ = createRet($2); }
-            | RETURN LPAREN expression RPAREN SEMICOLON                              { $$ = createRet($3); }
-            | term EQUAL term SEMICOLON                            { $$ = createAsgn($1, $3); }
-            | term EQUAL expression SEMICOLON                      { $$ = createAsgn($1, $3); }
+statement   : RETURN LPAREN term RPAREN SEMICOLON                                     { $$ = createRet($3); }
+            | RETURN term SEMICOLON                                                   { $$ = createRet($2); }
+            | RETURN expression SEMICOLON                                             { $$ = createRet($2); }
+            | RETURN LPAREN expression RPAREN SEMICOLON                               { $$ = createRet($3); }
+            | term EQUAL term SEMICOLON                                               { $$ = createAsgn($1, $3); }
+            | term EQUAL expression SEMICOLON                                         { $$ = createAsgn($1, $3); }
             | WHILE LPAREN condition RPAREN LCURL block RCURL                         { $$ = createWhile($3, $6); }
             | IF LPAREN condition RPAREN LCURL block RCURL ELSE LCURL statement RCURL { $$ = createIf($3, $6, $10); }
             | IF LPAREN condition RPAREN LCURL block RCURL                            { $$ = createIf($3, $6, NULL); }
-            | IF LPAREN condition RPAREN statement                                      { $$ = createIf($3, $5, NULL); }
+            | IF LPAREN condition RPAREN statement                                    { $$ = createIf($3, $5, NULL); }
             | function SEMICOLON
 
 function    : READ LPAREN RPAREN                    { $$ = createCall("read", NULL); }
-            | term EQUAL function               { $$ = createAsgn($1, $3); } 
+            | term EQUAL function                   { $$ = createAsgn($1, $3); } 
             | PRINT LPAREN term RPAREN              { $$ = createCall("print", $3); }   
 
 expression  : term ADD term           { $$ = createBExpr($1, $3, add); }

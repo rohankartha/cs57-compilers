@@ -18,12 +18,15 @@ syntaxanalyzer: yacc.y lex.l
 compiler: $(YACCHEADER)
 	g++ -g $(COMPILER) $(SEMANALYSIS) $(AST) $(YACCOUTPUT) $(LEXOUTPUT) -o compiler
 
+# Testing parser and semantic analyzer
 test: 
 	./parsertests.sh
 
+# Checking for memory leaks
 valgrind:
 	$(VALGRIND) ./compiler testing/semantic_analysis_tests/p3_good.c
 
+# Remove output and object files
 clean:
 	rm -rf syntaxanalyzer lex.yy.c y.tab.c y.tab.h y.output lex.out testing/testing-output/* compiler vgcore.2591482
 
