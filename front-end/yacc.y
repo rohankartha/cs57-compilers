@@ -50,6 +50,7 @@ program     : EXTERN VOID PRINT LPAREN INTEGER RPAREN SEMICOLON {}
                                                                                         astNode* new_func = createFunc("func", param, $9);
                                                                                         root = createProg(print_func, read_func, new_func);
                                                                                         $$ = root;
+                                                                                        free($6);
                                                                                     }
 
 block       : declarations statements       {
@@ -65,7 +66,7 @@ block       : declarations statements       {
 declarations: declarations declaration   { $$ = $1; $$->push_back($2); }
             | declaration                { $$ = new vector<astNode*>(); $$->push_back($1); }  
  
-declaration : INTEGER VARIABLE SEMICOLON { $$ = createDecl($2); }
+declaration : INTEGER VARIABLE SEMICOLON { $$ = createDecl($2); free($2); }
 
 statements  : statements statement       { $$ = $1; $$->push_back($2); }
             | statement                  { $$ = new vector<astNode*>(); $$->push_back($1); }
