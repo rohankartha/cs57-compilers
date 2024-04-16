@@ -58,6 +58,8 @@ block       : declarations statements       {
                                                 block->insert(block->end(), $1->begin(), $1->end());
                                                 block->insert(block->end(), $2->begin(), $2->end());
                                                 $$ = createBlock(block);
+                                                delete($1);
+                                                delete($2);
                                             }
             | statements                    {
                                                 $$ = createBlock($1);
@@ -83,7 +85,7 @@ statements  : statements statement      {
                                             $$->push_back($1);
                                         }
 
-statement   : RETURN LPAREN term RPAREN SEMICOLON {}
+statement   : RETURN LPAREN term RPAREN SEMICOLON { $$ = createRet($3); }
             | RETURN term SEMICOLON                 { $$ = createRet($2); }
             | RETURN expression SEMICOLON                              { $$ = createRet($2); }
             | RETURN LPAREN expression RPAREN SEMICOLON                              { $$ = createRet($3); }
@@ -92,6 +94,7 @@ statement   : RETURN LPAREN term RPAREN SEMICOLON {}
             | WHILE LPAREN condition RPAREN LCURL block RCURL                         { $$ = createWhile($3, $6); }
             | IF LPAREN condition RPAREN LCURL block RCURL ELSE LCURL statement RCURL { $$ = createIf($3, $6, $10); }
             | IF LPAREN condition RPAREN LCURL block RCURL                            { $$ = createIf($3, $6, NULL); }
+            | IF LPAREN condition RPAREN statement                                      { $$ = createIf($3, $5, NULL); }
             | function SEMICOLON
 
 function    : READ LPAREN RPAREN                    { $$ = createCall("read", NULL); }
@@ -111,7 +114,7 @@ condition   : term GREATER term             { $$ = createRExpr($1, $3, gt); }
             | term EXCLAM EQUAL term        { $$ = createRExpr($1, $4, neq); }
 
 term        : NUM               { $$ = createCnst($1);}
-            | VARIABLE          { $$ = createVar($1);} 
+            | VARIABLE          { $$ = createVar($1); free($1); } 
             | SUBTRACT term     { $$ = createUExpr($2, uminus); }
 
 %%

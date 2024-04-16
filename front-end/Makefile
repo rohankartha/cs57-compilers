@@ -22,9 +22,9 @@ test:
 	./parsertests.sh
 
 valgrind:
-	$(VALGRIND) ./compiler parser_tests/p1.c
+	$(VALGRIND) ./compiler testing/semantic_analysis_tests/p3_good.c
 
 clean:
-	rm -rf syntaxanalyzer lex.yy.c y.tab.c y.tab.h y.output lex.out error1.txt error2.txt error3.txt error4.txt error5.txt testtree1.txt testtree2.txt testtree3.txt testtree4.txt testtree5.txt compiler
+	rm -rf syntaxanalyzer lex.yy.c y.tab.c y.tab.h y.output lex.out testing/testing-output/* compiler vgcore.2591482
 
 

@@ -26,6 +26,9 @@ bool semanticAnalysis()
 
     // Starting traversal at AST root
     bool semanticAnalysisResult = analyzeNode(stStack, root);
+
+    // Freeing stack and returning result
+    delete stStack;
     return semanticAnalysisResult;
 }
 
@@ -35,11 +38,6 @@ bool semanticAnalysis()
 /***************** analyzeNode ***********************/
 bool analyzeNode(stack<vector<char*>> *stStack, ast_Node* node)
 {
-    // Parameter checks
-    if (stStack == NULL || node == NULL) {
-        return false;
-    }
-
     bool result;
 
     switch(node->type) {
@@ -254,8 +252,10 @@ bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt, int code)
         result = analyzeNode(stStack, ifStmt.if_body);
         if (!result) { return false; }
 
-        result = analyzeNode(stStack, ifStmt.else_body);
-        if (!result) { return false; }
+        if (ifStmt.else_body != NULL) {
+            result = analyzeNode(stStack, ifStmt.else_body);
+            if (!result) { return false; }
+        }
 
         return true;
     }

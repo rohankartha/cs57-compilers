@@ -26,6 +26,8 @@ int main(int argc, char* argv[]) {
     }
     yylex_destroy();
 
+    printNode(root);
+
     bool result = semanticAnalysis();
 
     if (result) {
@@ -34,6 +36,9 @@ int main(int argc, char* argv[]) {
     else {
         printf("Error with parsing\n");
     }
+
+    freeNode(root);
+
 
     
 
