@@ -2,11 +2,11 @@
 
 ## Rohan Kartha (rohankartha)
 
-### front-end
+### Description
 
 `front-end` implements the lexical analyzer, syntax analyzer, and semantic analyzer of the mini-c compiler. The lexical analyzer is generated using `lex` and the syntax analyzer with `yacc`. The semantic analyzer is implemented with a `stack` of symbol tables. Each table is implemented with a `vector<char*>` object. The semantic analyzer returns a `bool` variable to the compiler driver program `compiler.c`.
 
-#### Files
+### Files
 
 `/ast`: third-party dependency which provides abstract syntax tree data structure
 `compiler.c`: driver program for the mini-c compiler
@@ -50,7 +50,7 @@
 `-- yacc.y
 ```
 
-#### Testing
+### Testing
 
 To test the front-end:
 
