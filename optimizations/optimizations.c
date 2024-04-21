@@ -1,13 +1,20 @@
 #include <stdlib.h>
 #include <stdbool.h>
-#include "Core.h"
+#include <llvm-c/Core.h>
 
 #define MAX_OPERAND 3
 
+/***************** global function declarations ***********************/
+bool removeCommonSubexpression(LLVMBasicBlockRef bb);
 
+/***************** local function declarations ***********************/
+static int getBasicBlockSize(LLVMBasicBlockRef bb);
+
+
+/***************** local type declarations ***********************/
 typedef struct tracker {
     LLVMOpcode opcode;
-    int operand[MAX_OPERAND]; // may have to intiialize to 0
+    int operand[MAX_OPERAND]; // may have to initialize to 0
 } tracker_t;
 
 
@@ -22,21 +29,22 @@ bool removeCommonSubexpression(LLVMBasicBlockRef bb)
     // Calculating number of instructions in block and initializing tracker
     int numInstructions = getBasicBlockSize(bb);
     tracker_t* instructionTracker[numInstructions];
+    int counter = 0;
 
     // Iterating through basic block instructions
     for (LLVMValueRef instruction = LLVMGetFirstInstruction(bb); 
         instruction != NULL; 
         instruction = LLVMGetNextInstruction) {
 
-        LLVMOpcode opCode = LLVMGetInstructionOpcode(instruction);
+        instructionTracker[counter]->opcode = LLVMGetInstructionOpcode(instruction);
         
-
-
+        printf("%d", instructionTracker[counter]->opcode);
+    }
 }
 
 
 /***************** getBasicBlockSize ***********************/
-int getBasicBlockSize(LLVMBasicBlockRef bb)
+static int getBasicBlockSize(LLVMBasicBlockRef bb)
 {
     // Validating parameters
     if (bb == NULL) {
