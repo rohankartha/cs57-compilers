@@ -44,3 +44,5 @@ TAGS
 # I suggest you create crawler/indexer output in subdirectories of ./data
 optimizer
 in-class
+testing
+test_new.ll
