@@ -5,3 +5,4 @@
 #include <cstddef>
 #include <vector>
 bool removeCommonSubexpression(LLVMBasicBlockRef bb);
+bool constantFolding(LLVMValueRef function);

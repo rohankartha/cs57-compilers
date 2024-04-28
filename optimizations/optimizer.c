@@ -77,6 +77,9 @@ void walkFunctions(LLVMModuleRef module){
 		printf("Function Name: %s\n", funcName);
 
 		walkBasicblocks(function);
+
+		// Testing
+		constantFolding(function);
  	}
 }
 
@@ -115,15 +118,4 @@ int main(int argc, char** argv)
 	}
 	
 	return 0;
-
-	// LLVMValueKind LLVMGetValueKind(LLVMValueRef Val);
-	// LLVMTypeRef LLVMTypeOf(LLVMValueRef Val);
-
-
-
-
-
-
-
-
 }
