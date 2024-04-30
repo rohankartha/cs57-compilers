@@ -14,13 +14,32 @@
 #include <vector>
 #include <unordered_map>
 #include <set>
+#include <algorithm>
 using namespace std;
 
 #define MAX_OPERAND 3
 
+/***************** global type declarations ***********************/
+
+typedef struct basicBlockSets {
+    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> genSets;
+    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> killSets;
+    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> inSets;
+    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> outSets;
+    unordered_map<LLVMBasicBlockRef, set<LLVMBasicBlockRef>> predecessors;
+} basicBlockSets_t;
+
+
 /***************** global function declarations ***********************/
 bool removeCommonSubexpression(LLVMBasicBlockRef bb);
 bool constantFolding(LLVMValueRef function);
+basicBlockSets_t computePredecessors(LLVMValueRef function);
+set<LLVMValueRef> computeGen(LLVMBasicBlockRef bb);
+set<LLVMValueRef> computeKill(LLVMBasicBlockRef bb, set<LLVMValueRef> storeSet);
+basicBlockSets_t computeInandOut(LLVMValueRef function, basicBlockSets_t bbSets);
+
+
+
 
 
 /***************** removeCommonSubexpression ***********************/
@@ -31,53 +50,101 @@ bool removeCommonSubexpression(LLVMBasicBlockRef bb)
         return false;
     }
 
-    // Initializing vectors to store instructions already encountered
-    unordered_map<LLVMOpcode, vector<LLVMValueRef>> historyMap;
+    // Initializing vector to store instructions already encountered
+    vector<LLVMValueRef> oldInstructions;
+    int breakHelper = 0;
 
     // Iterating through basic block instructions
     for (LLVMValueRef instruction = LLVMGetFirstInstruction(bb); 
-        instruction != NULL; 
-        instruction = LLVMGetNextInstruction(instruction)) {
+            instruction != NULL; 
+            instruction = LLVMGetNextInstruction(instruction)) {
 
-        // Retrieving opcode and number operands of instruction
+        char* instructionString = LLVMPrintValueToString(instruction);
+        printf("candidate: %s\n", instructionString);
+
+        // Retrieving opcode of instruction
         LLVMOpcode opcode = LLVMGetInstructionOpcode(instruction);
-        int numOperands = LLVMGetNumOperands(instruction);
 
-        vector<LLVMValueRef> operands;
+        // Iterate through set of instructions already encountered
+        for (auto iter = oldInstructions.begin(); iter != oldInstructions.end(); ++iter) {
+            LLVMValueRef oldInst = *iter;
 
-        printf("numOperands: %d\n", numOperands);
+            // Extract opcode from old instruction
+            LLVMOpcode oldOpCode = LLVMGetInstructionOpcode(oldInst);
 
-        // Retrieving operands from the instruction
-        for (int i = 0; i < numOperands; i++) {
-            LLVMValueRef newOperand = LLVMGetOperand(instruction, i);
-            printf("Operand %d: \n", i);
-            operands.push_back(newOperand);
-        }
+            // Check if opcode of old instruction matches that of current instruction
+            if (oldOpCode == opcode) {
 
-        // Checking if instruction with same opcode + operands already encountered
-        int check = 0;
+                // Extracting operands of new instruction
+                vector<LLVMValueRef> newOperands;
+                int newNumOperands = LLVMGetNumOperands(instruction);
 
-        if (!historyMap.empty() && historyMap.count(opcode) > 0) {
-            auto it = historyMap.find(opcode);
-            vector<LLVMValueRef> historyOperands = it->second;
+                for (int i = 0; i < newNumOperands; i++) {
+                    LLVMValueRef newOperand = LLVMGetOperand(instruction, i);
+                    char* op = LLVMPrintValueToString(newOperand);
+                    //printf("current Operand %d: %s \n", i, op);
+                    newOperands.push_back(newOperand);
+                }
 
-            if (historyOperands == operands) {
-                printf("Common subexpression\n");
-                check = 1;
+                // Extracting operands of old instruction
+                vector<LLVMValueRef> oldOperands;
+                int oldNumOperands = LLVMGetNumOperands(oldInst);
+
+                for (int i = 0; i < oldNumOperands; i++) {
+                    LLVMValueRef oldOperand = LLVMGetOperand(oldInst, i);
+                    char* op = LLVMPrintValueToString(oldOperand);
+                    //printf("old Operand %d: %s\n", i, op);
+                    oldOperands.push_back(oldOperand);
+                }
+
+                // If operands are same, move to next instruction in basic block
+                if (newOperands == oldOperands) {
+
+                    // If instruction is a load instruction, check for stores
+
+                    char* test = LLVMPrintValueToString(instruction);
+                    char* testTwo = LLVMPrintValueToString(oldInst);
+                    printf("Common subexpression DETECTED\n");
+                    printf("old: %s\n\n", testTwo);
+
+                    // ADD STUFF HERE
+                    newOperands.clear();
+                    oldOperands.clear();
+                    breakHelper = 1;
+                    break;
+                }
+                newOperands.clear();
+                oldOperands.clear();
             }
         }
-        
-        // If instruction with same opcode + operands not encountered, add it to map
-        if (check == 0) {
-            historyMap.insert({opcode, operands});
+        if (breakHelper == 0) {
+            char* test = LLVMPrintValueToString(instruction);
+            printf("Common subexpression NOT DETECTED\n\n");
+            oldInstructions.push_back(instruction);
         }
 
-        char* test = LLVMPrintValueToString(instruction);
-        printf("%s\n\n", test);
-
-        operands.clear();
+        breakHelper = 0;
     }
+
+        // // Clearing operand vector
+        // operands.clear();
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /***************** cleanDeadCode ***********************/
@@ -182,23 +249,156 @@ set<LLVMValueRef> computeGen(LLVMBasicBlockRef bb)
 
 
 /***************** computeKill ***********************/
-set<LLVMValueRef> computeKill(LLVMBasicBlockRef bb) {
-
+set<LLVMValueRef> computeKill(LLVMBasicBlockRef bb, set<LLVMValueRef> storeSet) 
+{
     // Create set of all store instructions in function
 
     // Initializing kill set to empty set
+    set<LLVMValueRef> killSet; 
 
-    // Iterate over all instructions in basic block 
+    // Iterate over all instructions in basic block
+    for (LLVMValueRef instruction = LLVMGetFirstInstruction(bb); 
+            instruction != NULL; 
+            instruction = LLVMGetNextInstruction(instruction)) {
+    }
 
 
 }
 
 /***************** computeInandOut ***********************/
-vector<set<LLVMValueRef>> computeInandOut(LLVMBasicBlockRef bb) {}
+// basicBlockSets_t computeInandOut(LLVMValueRef function, basicBlockSets_t bbSets) 
+// {
+//     // Determine predecessors of each basic block
+//     bbSets = computePredecessors(function);
+
+
+//     // Iterating through basic blocks in function
+//     for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); function != NULL;
+//             bb = LLVMGetNextBasicBlock(bb)) {
+        
+//         //
+//         // LLVMGetprevbasicblock
+//         bbSets.predecessors.at(0);
+
+//         outSetUnion(bbSets.predecessors.at(0), bbSets.predecessors.at(0));
 
 
 
 
+
+
+//         // Calculate "in" set from union of predecessor "out" sets
+//         // for (auto it = bbSets.predecessors.begin(); it != bbSets.predecessors.end(); ++it) {
+//         //     LLVMBasicBlockRef predecessorBlock = *it;
+
+//         //     set<LLVMValueRef> test = bbSets.outSets.find(predecessorBlock);
+
+//         //     set_union()
+
+
+//         // }
+
+
+
+        
+
+
+//     }
+
+
+
+
+
+
+//     // Initialize "in" set 
+//     set<LLVMValueRef> inSet;
+
+//     // Setting "out" set to "gen" set
+//     set<LLVMValueRef> outSet = genSet;
+
+//     bool change = true;
+
+    
+
+//     while (change) {
+
+//     }
+
+
+
+
+// }
+
+
+
+
+
+/***************** computePredecessors ***********************/
+basicBlockSets_t computePredecessors(LLVMValueRef function, basicBlockSets_t bbSets) 
+{
+
+    for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function);
+ 			basicBlock;
+  			basicBlock = LLVMGetNextBasicBlock(basicBlock)) {
+        //
+
+        LLVMBasicBlockRef predecessor = NULL;
+
+        set<LLVMBasicBlockRef> bbPredecessors;
+
+        while((predecessor = LLVMGetPreviousBasicBlock(basicBlock)) != NULL) {
+            bbPredecessors.insert(predecessor);
+        }
+
+        bbSets.predecessors.insert(make_pair(basicBlock, bbPredecessors));
+    }
+
+    return bbSets;
+
+}
+
+
+
+
+/***************** union ***********************/
+set<LLVMValueRef> outSetUnion(set<LLVMValueRef> setOne, set<LLVMValueRef> setTwo) 
+{
+    // Return the non-empty set if one of the sets is empty
+    if (setOne.empty()) {
+        return setTwo;
+    }
+
+    if (setTwo.empty()) {
+        return setOne;
+    }
+
+    // Determine relative sizes of sets
+    set<LLVMValueRef> smaller;
+    set<LLVMValueRef> larger;
+
+    if (setOne.size() > setTwo.size()) {
+        smaller = setTwo;
+        larger = setOne;
+    }
+    else {
+        smaller = setOne;
+        larger = setTwo;
+    }
+
+    set<LLVMValueRef> out_Union;
+
+    // Iterate through smaller set
+    for (auto it = smaller.begin(); it != smaller.end(); ++it) {
+
+        LLVMValueRef instruction = *it;
+
+        if (larger.find(instruction) != larger.end()) {
+            out_Union.insert(instruction);
+        }
+    }
+    
+    return out_Union;
+}
 
 
 /***************** constantPropagation ***********************/

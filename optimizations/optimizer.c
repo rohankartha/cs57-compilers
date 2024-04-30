@@ -5,6 +5,11 @@
 #include <llvm-c/IRReader.h>
 #include <llvm-c/Types.h>
 #include "optimizations.h"
+#include <cstddef>
+#include <vector>
+#include <unordered_map>
+#include <set>
+using namespace std;
 
 #define prt(x) if(x) { printf("%s\n", x); }
 
@@ -40,8 +45,16 @@ void walkBBInstructions(LLVMBasicBlockRef bb){
   				instruction = LLVMGetNextInstruction(instruction)) {
 
                     // Local optimizations
-                    removeCommonSubexpression(bb);
-                    printf("TEST");
+                    //removeCommonSubexpression(bb);
+                    // printf("TEST");
+
+					// set<LLVMValueRef> test = computeGen(bb);
+
+					// for (auto it = test.begin(); it != test.end(); ++it) {
+					// 	LLVMValueRef testRef = *it;
+					// 	char* testString = LLVMPrintValueToString(testRef);
+					// 	printf("%s\n", testString);
+					// }
                     
 
 
@@ -58,9 +71,10 @@ void walkBasicblocks(LLVMValueRef function){
 		
 		printf("In basic block\n");
 
-		//walkBBInstructions(basicBlock);
+		walkBBInstructions(basicBlock);
 
         // Local optimizations
+		//printf("Remove common subexpression: \n");
         removeCommonSubexpression(basicBlock);
 	
 	}
@@ -79,7 +93,7 @@ void walkFunctions(LLVMModuleRef module){
 		walkBasicblocks(function);
 
 		// Testing
-		constantFolding(function);
+		//constantFolding(function);
  	}
 }
 
