@@ -7,6 +7,10 @@
 #include <unordered_map>
 #include <set>
 using namespace std;
+
 bool removeCommonSubexpression(LLVMBasicBlockRef bb);
 bool constantFolding(LLVMValueRef function);
 set<LLVMValueRef> computeGen(LLVMBasicBlockRef bb);
+bool constantPropagation(LLVMValueRef function);
+unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> computePredecessors(LLVMValueRef function);
+//vector<set<LLVMValueRef>> computeInandOut(LLVMValueRef function, basicBlockSets_t completeSets);

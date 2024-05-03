@@ -69,7 +69,7 @@ void walkBasicblocks(LLVMValueRef function){
  			 basicBlock;
   			 basicBlock = LLVMGetNextBasicBlock(basicBlock)) {
 		
-		printf("In basic block\n");
+		//printf("In basic block\n");
 
 		walkBBInstructions(basicBlock);
 
@@ -82,19 +82,19 @@ void walkBasicblocks(LLVMValueRef function){
 
 
 void walkFunctions(LLVMModuleRef module){
-	for (LLVMValueRef function =  LLVMGetFirstFunction(module); 
-			function; 
-			function = LLVMGetNextFunction(function)) {
+	LLVMValueRef function =  LLVMGetFirstFunction(module); 
+			
 
-		const char* funcName = LLVMGetValueName(function);	
+	const char* funcName = LLVMGetValueName(function);	
 
-		printf("Function Name: %s\n", funcName);
+	printf("Function Name: %s\n", funcName);
 
-		walkBasicblocks(function);
+	walkBasicblocks(function);
 
 		// Testing
 		//constantFolding(function);
- 	}
+		constantPropagation(function);
+ 	
 }
 
 
