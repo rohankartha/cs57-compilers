@@ -93,7 +93,9 @@ void walkFunctions(LLVMModuleRef module){
 
 		// Testing
 		//constantFolding(function);
-		constantPropagation(function);
+	bool cpResult = constantPropagation(function);
+	printf("exitmain");
+	fflush(stdout);
  	
 }
 

@@ -15,7 +15,7 @@ input: $(MINIC)
 
 # Basic testing
 test: 
-	./optimizer testing/opt_tests/p4_const_prop.ll > testing.out
+	./optimizer testing/test.ll > testing.out
 
 # Clean directory
 clean:

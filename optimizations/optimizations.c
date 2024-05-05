@@ -5,7 +5,7 @@
  * 
 */
 
-
+/***************** dependencies ***********************/
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -32,16 +32,27 @@ typedef struct basicBlockSets {
 /***************** global function declarations ***********************/
 bool removeCommonSubexpression(LLVMBasicBlockRef bb);
 bool constantFolding(LLVMValueRef function);
-set<LLVMValueRef> computeGen(LLVMBasicBlockRef bb);
-set<LLVMValueRef> computeKill(LLVMBasicBlockRef bb, set<LLVMValueRef> storeSet);
-vector<set<LLVMValueRef>> computeInandOut(LLVMValueRef function, basicBlockSets_t completeSets);
 bool constantPropagation(LLVMValueRef function);
+
+/***************** local function declarations ***********************/
+static set<LLVMValueRef> setMinus(set<LLVMValueRef> inSet, set<LLVMValueRef> killSet);
+static set<LLVMValueRef> findSetUnion(set<LLVMValueRef> setOne, set<LLVMValueRef> setTwo); 
+static unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> computePredecessors(LLVMValueRef function);
+static set<LLVMValueRef> computeGen(LLVMBasicBlockRef bb);
+static set<LLVMValueRef> computeKill(LLVMBasicBlockRef bb, unordered_map<LLVMValueRef, vector<LLVMValueRef>> allStoreSet);
+static vector<set<LLVMValueRef>> computeInandOut(LLVMValueRef function, vector<LLVMBasicBlockRef> predecessors, 
+        basicBlockSets_t completeBBSets, LLVMBasicBlockRef basicBlock);
+
+
+
+
+
+// testing functions
 void printSet(set<LLVMValueRef> testSet);
 void printVector(unordered_map<LLVMValueRef, vector<LLVMValueRef>> allStoreSet);
-unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> computePredecessors(LLVMValueRef function);
 void printVectorTwo(unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> allStoreSet);
-set<LLVMValueRef> findSetUnion(set<LLVMValueRef> setOne, set<LLVMValueRef> setTwo);
-set<LLVMValueRef> setMinus(set<LLVMValueRef> inSet, set<LLVMValueRef> killSet);
+void printAllSets(basicBlockSets_t completeBBSet);
+char extractBlockName(char* bbAsString);
 
 
 
@@ -102,6 +113,8 @@ bool removeCommonSubexpression(LLVMBasicBlockRef bb)
 
                 // If operands of new and old instructions match, 
                 if (newOperands == oldOperands) {
+
+                    // TESTING
                     char* testTwo = LLVMPrintValueToString(oldInst);
                     //printf("old: %s\n", testTwo);
 
@@ -166,16 +179,6 @@ bool removeCommonSubexpression(LLVMBasicBlockRef bb)
 
 
 
-
-
-
-
-
-
-
-
-
-
 /***************** cleanDeadCode ***********************/
 bool cleanDeadCode(LLVMValueRef function) 
 {
@@ -223,27 +226,9 @@ bool constantFolding(LLVMValueRef function)
     }
 }
 
-// What LLVM instructions involve variables? 
-// store is direct (storing in memory), load is indirect (loading from memory into register)
-// all direct assignments are stores, not all stores are direct assignments
-// store instructions for assignments, store instructions for operations
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /***************** computeGen ***********************/
-set<LLVMValueRef> computeGen(LLVMBasicBlockRef bb) 
+static set<LLVMValueRef> computeGen(LLVMBasicBlockRef bb) 
 {
     // Initializing gen set to empty set
     set<LLVMValueRef> genSet; 
@@ -287,20 +272,12 @@ set<LLVMValueRef> computeGen(LLVMBasicBlockRef bb)
 }
 
 
-
-
-
-
-
-
-
-
-
 // kill set for all stores or just those in successors
 
 /***************** computeKill ***********************/
-set<LLVMValueRef> computeKill(LLVMBasicBlockRef bb, unordered_map<LLVMValueRef, vector<LLVMValueRef>> allStoreSet) 
+static set<LLVMValueRef> computeKill(LLVMBasicBlockRef bb, unordered_map<LLVMValueRef, vector<LLVMValueRef>> allStoreMap) 
 {
+
     // Initializing kill set to empty set
     set<LLVMValueRef> killSet; 
 
@@ -311,10 +288,10 @@ set<LLVMValueRef> computeKill(LLVMBasicBlockRef bb, unordered_map<LLVMValueRef, 
         
         if (LLVMGetInstructionOpcode(instruction) == LLVMStore) {
             LLVMValueRef memLoc = LLVMGetOperand(instruction, 1);
-            int check = allStoreSet.count(memLoc);
+            int check = allStoreMap.count(memLoc);
 
             if (check > 0) {
-                vector<LLVMValueRef> locations = (allStoreSet.find(memLoc))->second;
+                vector<LLVMValueRef> locations = (allStoreMap.find(memLoc))->second;
 
                 for (auto it = locations.begin(); it != locations.end(); ++it) {
                     
@@ -329,186 +306,85 @@ set<LLVMValueRef> computeKill(LLVMBasicBlockRef bb, unordered_map<LLVMValueRef, 
     return killSet;
 }
 
-
-
+//recompute sets every time??
+// first set not printing
+// issue with multiple iterations
 
 /***************** computeInandOut ***********************/
-vector<set<LLVMValueRef>> computeInandOut(LLVMValueRef function, basicBlockSets_t completeSets) 
+static vector<set<LLVMValueRef>> computeInandOut(LLVMValueRef function, vector<LLVMBasicBlockRef> predecessors, 
+        basicBlockSets_t completeBBSets, LLVMBasicBlockRef basicBlock) 
 {
-    // Determine predecessors of each basic block
-    unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> predecessorMap = computePredecessors(function);
+    // Initializing block "out" and "in" sets
+    set<LLVMValueRef> blockOutSet;
+    set<LLVMValueRef> blockInSet;
+    set<LLVMValueRef> blockGenSet;
 
-    // Create maps to store "in" sets and "out" sets for each basic block
-    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> inSets;
-    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> outSets;
+    // Initializing vector that will eventually hold "out" and "in" sets
+    vector<set<LLVMValueRef>> newInAndOut;
 
-    // Set "out" set of each block equal to its "gen" set
-    for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); bb != NULL;
-            bb = LLVMGetNextBasicBlock(bb)) {
+    // Retrieving block's "out" and "gen" sets
+    auto blockGenSetIter = completeBBSets.genSets.find(basicBlock);
+    if (blockGenSetIter != completeBBSets.genSets.end()) {
+        blockGenSet = blockGenSetIter->second;
 
-        auto originalGenSet = completeSets.genSets.find(bb);
+        auto blockOutSetIter = completeBBSets.outSets.find(basicBlock);
+        if (blockOutSetIter != completeBBSets.outSets.end()) {
+            blockOutSet = blockOutSetIter->second;
+        
+            // Calculating "in" set of each basic block from union of "out" set
+            set<LLVMValueRef> setOne;
 
-        if (originalGenSet != completeSets.genSets.end()) {
-            set<LLVMValueRef> extractedGenSet = originalGenSet->second;
-            outSets.insert({bb, extractedGenSet});
-        }
-    }
+            // Iterating through predecessor vector and computing the union of each predecessor's "out" set
+            for (auto predVecIter = predecessors.begin(); predVecIter != predecessors.end(); ++predVecIter) {
+                auto predOutIter = completeBBSets.outSets.find(*predVecIter);
 
-
-    // // TESTING
-    // for (LLVMBasicBlockRef bb2 = LLVMGetFirstBasicBlock(function); bb2 != NULL;
-    //         bb2 = LLVMGetNextBasicBlock(bb2)) {
-
-    //         auto itTest = outSets.find(bb2);
-
-    //         if (itTest != outSets.end()) {
-    //             //TESTING
-    //             printf("outset test:");
-    //             fflush(stdout);
-    //             printSet(itTest->second);
-    //             printf("\n");
-    //         }
-    // }
-    // printf("test");
-    // fflush(stdout);
-
-    bool change = true;
-    while(change) {
-
-        // Calculating "in" set of each basic block from union of out sets
-        int firstInstCheck = 0;
-
-        // Iterating through each basic block
-        for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); bb != NULL;
-                bb = LLVMGetNextBasicBlock(bb)) {
-
-            printf("Loop0");
-
-            // Skip first basic block, which has no predecessors
-            if (firstInstCheck == 0) {
-                firstInstCheck++;
-                continue;
+                if (predOutIter != completeBBSets.outSets.end()) {
+                    set<LLVMValueRef> setTwo = predOutIter->second;
+                    setOne = findSetUnion(setOne, setTwo);
+                }
             }
 
-            // Retrieving predecessors of basic block
-            auto iter = predecessorMap.find(bb);
+            // Setting "in" set of basic block equal to the union of predecessor sets
+            blockInSet = setOne;
+            char* bbName = LLVMPrintValueToString(LLVMBasicBlockAsValue(basicBlock));
+            extractBlockName(bbName);
+            printf("in set: \n");
+            printSet(blockInSet);
 
-            if (iter != predecessorMap.end()) {
-                printf("Loop1");
-                vector<LLVMBasicBlockRef> predecessors = iter->second;
-                set<LLVMValueRef> setOne;
-                fflush(stdout);
+            // Saving old "out" set of block
+            set<LLVMValueRef> oldOut = blockOutSet;
 
-                // Find union of the predecessor out sets
-                for (auto iterTwo = predecessors.begin(); iterTwo != predecessors.end(); ++iterTwo) {
+            // Calculating new "out" set for basic block using equation OUT[B] = GEN[B] U (IN[B] - KILL[B])
+            set<LLVMValueRef> genSet = blockGenSet;
 
-                    // Retrieving a predecessor's out set
-                    auto iterThree = outSets.find(*iterTwo);
+            // Retrieving the block's "kill" set
+            auto killSetIter = completeBBSets.killSets.find(basicBlock);
+            if (killSetIter != completeBBSets.killSets.end()) {
+                set<LLVMValueRef> killSet = killSetIter->second;
 
-                    if (iterThree != outSets.end()) {
-                        printf("Loop2\n");
-                        set<LLVMValueRef> setTwo = iterThree->second;
+                // POSSIBLE ERROR
+                set<LLVMValueRef> inKillDiff = setMinus(blockInSet, killSet);
+                set<LLVMValueRef> genUnionDiff = findSetUnion(genSet, inKillDiff);
+                printf("out set: \n");
+                printSet(genUnionDiff);
 
-                        printf("Set one: \n");
+                // Return "in" set, "out" set, and "oldout" set
+                set<LLVMValueRef> newOut = genUnionDiff;
+                newInAndOut.push_back(newOut);
+                newInAndOut.push_back(blockInSet);
+                newInAndOut.push_back(oldOut);
 
-
-
-                        printSet(setOne);
-                        printf("Set two: \n");
-                        printSet(setTwo);
-
-
-
-
-                        setOne = findSetUnion(setOne, setTwo);
-                    }
-                }
-
-                printf("Final union: \n");
-                printSet(setOne);
-                fflush(stdout);
-
-                // Setting "in" set of basic block equal to the union of predecessor sets
-
-                // should create insets not the one from complete
-                completeSets.inSets.insert({bb, setOne});
-                auto oldoutIter = outSets.find(bb);
-
-                if (oldoutIter != outSets.end()) {
-                    printf("test5");
-                    fflush(stdout);
-                    set<LLVMValueRef> oldout = oldoutIter->second;
-
-                    auto genSetIter = completeSets.genSets.find(bb);
-
-                    if (genSetIter != completeSets.genSets.end()) {
-                        printf("test6");
-                        fflush(stdout);
-                        set<LLVMValueRef> genSet = genSetIter->second;
-
-                        // WORKS UNTIL HERE
-
-                        // Calculating new "out" set for basic block
-                        auto inSetIter = completeSets.inSets.find(bb);
-
-                        if (inSetIter != completeSets.inSets.end()) {
-                            printf("test7");
-                            fflush(stdout);
-                            set<LLVMValueRef> inSet = inSetIter->second;
-
-                            auto killSetIter = completeSets.killSets.find(bb);
-
-                            if (killSetIter != completeSets.killSets.end()) {
-                                printf("test8");
-                                fflush(stdout);
-                                set<LLVMValueRef> killSet = killSetIter->second;
-
-                                printf("\ninset before:\n");
-                                printSet(inSet);
-                                inSet = setMinus(inSet, killSet);
-
-                                printf("\nkillset: \n");
-                                printSet(killSet);
-
-                                printf("\ninset after:\n");
-                                printSet(inSet);
-
-                                auto newOutIter = outSets.find(bb);
-
-                                if (newOutIter != outSets.end()) {
-                                    printf("test9");
-                                    fflush(stdout);
-                                    outSets.find(bb)->second = findSetUnion(genSet, inSet);
-                                }
-
-
-                                // START HERE
-
-                                auto changeSet = outSets.find(bb);
-
-                                if (changeSet != outSets.end()) {
-                                    printf("test10");
-                                    fflush(stdout);
-                                    if (outSets.find(bb)->second == oldout) { 
-                                        change = false; 
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                return newInAndOut;
             }
         }
     }
-    //printVectorTwo(predecessorMap);
+    return vector<set<LLVMValueRef>>();
 }
 
 
 
-
-
 /***************** computePredecessors ***********************/
-unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> computePredecessors(LLVMValueRef function) 
+static unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> computePredecessors(LLVMValueRef function) 
 {
     // Initializing map to store the predecessors of each basic block
     unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> predecessorMap;
@@ -550,48 +426,34 @@ unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> computePredecessors(
             }
         }
     }
+
+    // Since first basic block has no predecessor, it is added to the map with an empty set
+    predecessorMap.insert({LLVMGetFirstBasicBlock(function), vector <LLVMBasicBlockRef> ()});
     return predecessorMap;
 }
 
 
 
 /***************** findSetUnion ***********************/
-set<LLVMValueRef> findSetUnion(set<LLVMValueRef> setOne, set<LLVMValueRef> setTwo) 
+static set<LLVMValueRef> findSetUnion(set<LLVMValueRef> setOne, set<LLVMValueRef> setTwo) 
 {
-    // Returning empty set if one of the sets is empty
+    // Returning non-empty set if one of the sets is empty
     if (setOne.empty()) { return setTwo; }
     if (setTwo.empty()) { return setOne; }
 
-    // Determining relative sizes of sets
-    set<LLVMValueRef> smaller;
-    set<LLVMValueRef> larger;
-
-    if (setOne.size() > setTwo.size()) {
-        smaller = setTwo;
-        larger = setOne;
-    }
-    else {
-        smaller = setOne;
-        larger = setTwo;
-    }
-
-    set<LLVMValueRef> union_set;
+    set<LLVMValueRef> union_set = setOne;
 
     // Iterate through smaller set
-    for (auto it = smaller.begin(); it != smaller.end(); ++it) {
-
-        LLVMValueRef instruction = *it;
-
-        if (larger.find(instruction) != larger.end()) {
-            union_set.insert(instruction);
-        }
+    for (auto setIter = setTwo.begin(); setIter != setTwo.end(); ++setIter) {
+        LLVMValueRef instruction = *setIter;
+        union_set.insert(instruction);
     }
     return union_set;
 }
 
 
 /***************** setMinus ***********************/
-set<LLVMValueRef> setMinus(set<LLVMValueRef> inSet, set<LLVMValueRef> killSet) 
+static set<LLVMValueRef> setMinus(set<LLVMValueRef> inSet, set<LLVMValueRef> killSet) 
 {
     for (auto it = killSet.begin(); it != killSet.end(); ++it) {
         if (inSet.find(*it) != inSet.end()) {
@@ -603,14 +465,6 @@ set<LLVMValueRef> setMinus(set<LLVMValueRef> inSet, set<LLVMValueRef> killSet)
 
 
 
-
-
-
-
-
-
-
-
 /***************** constantPropagation ***********************/
 bool constantPropagation(LLVMValueRef function)
 {
@@ -618,7 +472,7 @@ bool constantPropagation(LLVMValueRef function)
     basicBlockSets_t completeBBSet;
 
     // Computing set "S" containing all store instructions in function
-    unordered_map<LLVMValueRef, vector<LLVMValueRef>> allStoreSet;
+    unordered_map<LLVMValueRef, vector<LLVMValueRef>> allStoreMap;
 
     for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function);
  			basicBlock;
@@ -632,75 +486,152 @@ bool constantPropagation(LLVMValueRef function)
 
                 // Checking if store instruction with same operand has already been visited
                 LLVMValueRef memLoc = LLVMGetOperand(instruction, 1);
-                auto item = allStoreSet.find(memLoc);
+                auto item = allStoreMap.find(memLoc);
 
                 // If same operand already visited, add instruction to vector
-                if (item != allStoreSet.end()) {
-                    (item->second).push_back(instruction);
+                if (item != allStoreMap.end()) {
+                    vector<LLVMValueRef> updatedVector = item->second;
+                    updatedVector.push_back(instruction);
+                    allStoreMap.erase(memLoc);
+                    allStoreMap.insert({memLoc, updatedVector});
                 }
                 // Otherwise add operand as a key along with instruction
                 else {
                     vector<LLVMValueRef> storeSet;
                     storeSet.push_back(instruction);
-                    allStoreSet.insert({memLoc, storeSet});
+                    allStoreMap.insert({memLoc, storeSet});
                 }
             }
         }
-
-        // Creating "gen" set and "kill" set for each basic block
-        completeBBSet.genSets.insert({basicBlock, computeGen(basicBlock)});
-        completeBBSet.killSets.insert({basicBlock, computeKill(basicBlock, allStoreSet)});
     }
 
+    // Creating "gen" set and "kill" set for each basic block
+    for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function);
+ 			basicBlock;
+  			basicBlock = LLVMGetNextBasicBlock(basicBlock)) {
 
+        completeBBSet.genSets.insert({basicBlock, computeGen(basicBlock)});
+        completeBBSet.killSets.insert({basicBlock, computeKill(basicBlock, allStoreMap)});
+    }
 
+    // Determine predecessors of each basic block
+    unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> predecessorMap = computePredecessors(function);
 
+    // Clearing "in" and "out" sets from previous iterations of constant propagation
+    completeBBSet.inSets.clear();
+    completeBBSet.outSets.clear();
 
-        //TESTING - PRINT OUT gen and kill
-        // for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function);
- 		// 	basicBlock;
-  		// 	basicBlock = LLVMGetNextBasicBlock(basicBlock)) {
+    // Setting each block's "out" set equal to its "gen" set
+    for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); bb != NULL;
+            bb = LLVMGetNextBasicBlock(bb)) {
 
-        //         auto it = completeBBSet.genSets.find(basicBlock);
+        // Retrieving block's "gen" set
+        auto blockGenSetIter = completeBBSet.genSets.find(bb);
+        if (blockGenSetIter != completeBBSet.genSets.end()) {
+            set<LLVMValueRef> genSet = blockGenSetIter->second;
 
-        //         printf("Gen set:\n");
-        //         if (it != completeBBSet.genSets.end()) {
-        //             printSet(it->second);
-        //         }
-        //         else {
-        //             printf("empty\n");
-        //         }
+            // Setting block's "out" set equal to its "gen" set
+            auto blockOutSetIter = completeBBSet.outSets.find(bb);
+            fflush(stdout);
+            completeBBSet.outSets.insert({bb, genSet});
+        }
+    }
 
-                // auto it2 = completeBBSet.killSets.find(basicBlock);
+    int counter = 1;
 
-                // printf("Kill set:\n");
-                // if (it2 != completeBBSet.killSets.end()) {
-                //     printSet(it2->second);
-                // }
-                // else {
-                //     printf("empty\n");
-                // }
-    //}
-    // NOT TESTING
-    computeInandOut(function, completeBBSet);
+    bool change = true;
+    while (change) {
+        change = false;
+        printf("\n\nIteration %d:\n", counter);
+        counter++;
 
-    //TESTING
-    // printf("All store\n");
-    // printVector(allStoreSet);
-    // printf("\n\n");
-    // for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function);
- 	// 		basicBlock;
-  	// 		basicBlock = LLVMGetNextBasicBlock(basicBlock)) {
-    //     printf("\n");
-        
-    //     printf("GEN:\n");
-    //     printSet(completeBBSet.genSets.at(basicBlock));
-    //     printf("KILL:\n");
-    //     printSet(completeBBSet.killSets.at(basicBlock));
-    // }
-    // printf("\n\n");
+        // Initializing map to hold sets above keyed by basic block reference
+        unordered_map<LLVMBasicBlockRef, vector<set<LLVMValueRef>>> updatedSets;
 
+        // Iterating through each basic block
+        for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); bb != NULL;
+                bb = LLVMGetNextBasicBlock(bb)) {
+            
+            // Retrieving vector of predecessors for basic block
+            auto predIter = predecessorMap.find(bb);
+
+            // Compute "in" and "out" sets for basic block
+            if (predIter != predecessorMap.end()) {
+                vector<LLVMBasicBlockRef> predecessors = predIter->second;
+                vector<set<LLVMValueRef>> inAndOutSets = computeInandOut(function, predecessors, completeBBSet, bb);
+
+                // Add updated sets to map, which will hold them until all blocks have been iterated through
+                updatedSets.insert({bb, inAndOutSets});
+
+                // Initializing sets to hold "out" set, "in" set, and old "out" set
+                set<LLVMValueRef> outSet = inAndOutSets.at(0);
+                set<LLVMValueRef> oldOutSet = inAndOutSets.at(2);
+
+                if (oldOutSet != outSet) {
+                    change = true;
+                }    
+            }
+        }
+
+        // Update completeBBSets
+        for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); bb != NULL;
+                bb = LLVMGetNextBasicBlock(bb)) {
+            
+            // Inserting updated "out" set into complete sets struct
+
+            // Retrieving updated sets
+            auto updateSetIter = updatedSets.find(bb);
+            if (updateSetIter != updatedSets.end()) {
+                vector<set<LLVMValueRef>> blockUpdateSet = updateSetIter->second;
+
+                // Initializing sets to hold "out" set, "in" set, and old "out" set
+                set<LLVMValueRef> outSet = blockUpdateSet.at(0);
+                set<LLVMValueRef> inSet = blockUpdateSet.at(1);
+                set<LLVMValueRef> oldOutSet = blockUpdateSet.at(2);
+
+                // Inserting updated "out" set into complete sets struct
+                auto outSetIter = completeBBSet.outSets.find(bb);
+                if (outSetIter != completeBBSet.outSets.end()) {
+                    outSetIter->second = outSet;
+                }
+                else {
+                    completeBBSet.outSets.insert({bb, outSet});
+                }
+
+                // Inserting updated "in" set into complete sets struct
+                auto inSetIter = completeBBSet.inSets.find(bb);
+                if (inSetIter != completeBBSet.inSets.end()) {
+                    inSetIter->second = inSet;
+                }
+                else {
+                    completeBBSet.inSets.insert({bb, inSet});
+                }
+
+                // deleteLoadInsts
+            }
+        }
+    }
 }
+
+
+
+
+
+
+
+
+
+
+// gen, kill, in, and out sets created correctly
+
+
+
+
+
+
+
+
+
 
 
 
@@ -719,6 +650,76 @@ bool constantPropagation(LLVMValueRef function)
 
 
 // Testing
+void printAllSets(basicBlockSets_t completeBBSet) {
+    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> genSets = completeBBSet.genSets;
+    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> killSets = completeBBSet.killSets;
+    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> inSets = completeBBSet.inSets;
+    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> outSets = completeBBSet.outSets;
+
+    // printf("-----------------------------------------------------------\n");
+    // printf("GEN SETS: \n");
+    // printf("-----------------------------------------------------------\n");
+
+    // for (auto it = genSets.begin(); it != genSets.end(); ++it) {
+    //     LLVMBasicBlockRef blockName = it->first;
+    //     set<LLVMValueRef> blockSet = it->second;
+
+    //     const char* blockNameString = LLVMGetBasicBlockName(blockName);
+    //     printf("Block name: %s\n", blockNameString);
+
+    //     printSet(blockSet);
+
+    // }
+    // printf("-----------------------------------------------------------\n");
+
+    // printf("KILL SETS: \n");
+    // printf("-----------------------------------------------------------\n");
+
+    // for (auto it = killSets.begin(); it != killSets.end(); ++it) {
+    //     LLVMBasicBlockRef blockName = it->first;
+    //     set<LLVMValueRef> blockSet = it->second;
+
+    //     const char* blockNameString = LLVMGetBasicBlockName(blockName);
+    //     printf("Block name: %s\n", blockNameString);
+
+    //     printSet(blockSet);
+
+    // }
+    printf("-----------------------------------------------------------\n");
+
+    printf("IN SETS: \n");
+    printf("-----------------------------------------------------------\n");
+
+    for (auto it = inSets.begin(); it != inSets.end(); ++it) {
+        LLVMBasicBlockRef blockName = it->first;
+        set<LLVMValueRef> blockSet = it->second;
+
+        const char* blockNameString = LLVMGetBasicBlockName(blockName);
+        printf("Block name: %s\n", blockNameString);
+
+        printSet(blockSet);
+
+    }
+
+    printf("-----------------------------------------------------------\n");
+
+    printf("OUT SETS: \n");
+    printf("-----------------------------------------------------------\n");
+
+    for (auto it = outSets.begin(); it != outSets.end(); ++it) {
+        LLVMBasicBlockRef blockName = it->first;
+        set<LLVMValueRef> blockSet = it->second;
+
+        const char* blockNameString = LLVMGetBasicBlockName(blockName);
+        printf("Block name: %s\n", blockNameString);
+
+        printSet(blockSet);
+
+    }
+    fflush(stdout);
+}
+
+
 void printSet(set<LLVMValueRef> testSet) {
 
     for (auto it = testSet.begin(); it != testSet.end(); ++it) {
@@ -767,4 +768,14 @@ void printVectorTwo(unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> 
         fflush(stdout);
     }
 
+}
+
+char extractBlockName(char* bbAsString) {
+    char blockName = bbAsString[1];
+    char blockNameTwo = bbAsString[2];
+
+    printf("\n\nBlock: %c%c\n\n", blockName, blockNameTwo);
+
+
+    return blockName;
 }
