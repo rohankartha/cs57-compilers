@@ -8,6 +8,20 @@
 #include <set>
 using namespace std;
 
-bool removeCommonSubexpression(LLVMBasicBlockRef bb);
-bool constantFolding(LLVMValueRef function);
+/***************** global type declarations ***********************/
+typedef struct basicBlockSets {
+    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> genSets;
+    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> killSets;
+    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> inSets;
+    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> outSets;
+    unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> predecessors;
+} basicBlockSets_t;
+
+typedef struct deadCodeMap {
+    set<LLVMValueRef> deadCode;
+} deadCodeMap_t;
+
+deadCodeMap_t removeCommonSubexpression(LLVMBasicBlockRef bb, deadCodeMap_t deadCode);
+deadCodeMap_t constantFolding(LLVMValueRef function, deadCodeMap_t deadCode);
 bool constantPropagation(LLVMValueRef function);
+void cleanDeadCode(LLVMValueRef function, deadCodeMap_t deadCode);

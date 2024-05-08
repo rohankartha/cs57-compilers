@@ -20,19 +20,16 @@ using namespace std;
 LLVMModuleRef createLLVMModel(char * filename)
 {
 	char *err = 0;
-
 	LLVMMemoryBufferRef ll_f = 0;
 	LLVMModuleRef m = 0;
 
 	LLVMCreateMemoryBufferWithContentsOfFile(filename, &ll_f, &err);
-
 	if (err != NULL) { 
 		prt(err);
 		return NULL;
 	}
 	
 	LLVMParseIRInContext(LLVMGetGlobalContext(), ll_f, &m, &err);
-
 	if (err != NULL) {
 		prt(err);
 	}
@@ -40,74 +37,35 @@ LLVMModuleRef createLLVMModel(char * filename)
 }
 
 
-void walkBBInstructions(LLVMBasicBlockRef bb){
-	for (LLVMValueRef instruction = LLVMGetFirstInstruction(bb); instruction;
-  				instruction = LLVMGetNextInstruction(instruction)) {
-
-                    // Local optimizations
-                    //removeCommonSubexpression(bb);
-                    // printf("TEST");
-
-					// set<LLVMValueRef> test = computeGen(bb);
-
-					// for (auto it = test.begin(); it != test.end(); ++it) {
-					// 	LLVMValueRef testRef = *it;
-					// 	char* testString = LLVMPrintValueToString(testRef);
-					// 	printf("%s\n", testString);
-					// }
-                    
-
-
-
-
-		}
-}
-
 
 void walkBasicblocks(LLVMValueRef function){
+	deadCodeMap_t codeMap;
 	for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function);
  			 basicBlock;
   			 basicBlock = LLVMGetNextBasicBlock(basicBlock)) {
-		
-		//printf("In basic block\n");
 
-		walkBBInstructions(basicBlock);
-
-        // Local optimizations
-		//printf("Remove common subexpression: \n");
-        removeCommonSubexpression(basicBlock);
-	
+        // Local optimization
+        codeMap = removeCommonSubexpression(basicBlock, codeMap);
 	}
+	// Local optimization
+	codeMap = constantFolding(function, codeMap);
+	cleanDeadCode(function, codeMap);
+
+	
+
+	// Global optimization
+	constantPropagation(function);
 }
 
 
 void walkFunctions(LLVMModuleRef module){
 	LLVMValueRef function =  LLVMGetFirstFunction(module); 
-			
-
 	const char* funcName = LLVMGetValueName(function);	
 
 	printf("Function Name: %s\n", funcName);
-
 	walkBasicblocks(function);
-
-		// Testing
-		//constantFolding(function);
-	bool cpResult = constantPropagation(function);
 	printf("exitmain");
 	fflush(stdout);
- 	
-}
-
-
-void walkGlobalValues(LLVMModuleRef module){
-	for (LLVMValueRef gVal =  LLVMGetFirstGlobal(module);
-                        gVal;
-                        gVal = LLVMGetNextGlobal(gVal)) {
-
-                const char* gName = LLVMGetValueName(gVal);
-                printf("Global variable name: %s\n", gName);
-        }
 }
 
 
@@ -125,13 +83,12 @@ int main(int argc, char** argv)
 
 	if (m != NULL){
 		//LLVMDumpModule(m);
-		walkGlobalValues(m);
+		LLVMPrintModuleToFile (m, "test_old.ll", NULL);
 		walkFunctions(m);
 		LLVMPrintModuleToFile (m, "test_new.ll", NULL);
 	}
 	else {
 	    fprintf(stderr, "m is NULL\n");
 	}
-	
 	return 0;
 }
