@@ -6,6 +6,8 @@
 */
 
 
+// constant prop: get rid of loads
+
 /***************** dependencies ***********************/
 #include <stdlib.h>
 #include <stdbool.h>
@@ -19,19 +21,6 @@
 #include "optimizations.h"
 using namespace std;
 
-
-/***************** global type declarations ***********************/
-// typedef struct basicBlockSets {
-//     unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> genSets;
-//     unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> killSets;
-//     unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> inSets;
-//     unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> outSets;
-//     unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> predecessors;
-// } basicBlockSets_t;
-
-// typedef struct deadCodeMap {
-//     unordered_map<LLVMBasicBlockRef, vector<LLVMValueRef>> deadCode;
-// } deadCodeMap_t;
 
 /***************** global function declarations ***********************/
 deadCodeMap_t removeCommonSubexpression(LLVMBasicBlockRef bb, deadCodeMap_t deadCode);
@@ -61,6 +50,18 @@ static char extractBlockName(char* bbAsString);
 
 void printVector(unordered_map<LLVMBasicBlockRef, vector<LLVMValueRef>> allStoreSet);
 void printVectorTwo(unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> allStoreSet);
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -193,14 +194,51 @@ deadCodeMap_t removeCommonSubexpression(LLVMBasicBlockRef bb, deadCodeMap_t dead
 }
 
 
-
 /***************** cleanDeadCode ***********************/
 void cleanDeadCode(LLVMValueRef function, deadCodeMap_t deadCode) 
 {
     // what functions can never be removed: store, ret, br, call
+    // clear deadcodemap?
 
 
     set<LLVMValueRef> instrToDelete = deadCode.deadCode;
+
+    // Iterating through each basic block
+    for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function); 
+             basicBlock;
+             basicBlock = LLVMGetNextBasicBlock(basicBlock)) {
+
+        // Iterating through instruction in the basic block
+        for (LLVMValueRef instruction = LLVMGetFirstInstruction(basicBlock); 
+                instruction != NULL; 
+                instruction = LLVMGetNextInstruction(instruction)) {
+
+            // Check if registers updated in load instructions are used after
+            if (LLVMGetInstructionOpcode(instruction) == LLVMLoad) {
+                LLVMValueRef instructionLHS = instruction;
+
+                bool use = false;
+                LLVMValueRef instCheck = LLVMGetNextInstruction(instruction);
+
+                for (instCheck; instCheck != NULL; instCheck = LLVMGetNextInstruction(instCheck)) {
+                    int numOperands = LLVMGetNumOperands(instCheck);
+
+                    for (int i = 0; i < numOperands; i++) {
+                        LLVMValueRef checkOp = LLVMGetOperand(instCheck, i);
+
+                        if (checkOp == instructionLHS) {
+                            use = true;
+                        }
+                    }
+                }
+
+                // If registers not used, add instructions to dead code vector
+                if (!use) {
+                    instrToDelete.insert(instruction);
+                }
+            }
+        }   
+    }
 
     // remove common subexpressions, old instructions from constant folding
     printSet(instrToDelete);
@@ -262,16 +300,6 @@ deadCodeMap_t constantFolding(LLVMValueRef function, deadCodeMap_t deadCode)
     deadCode.deadCode = deadMap;
     return deadCode;
 }
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -440,8 +468,6 @@ static unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> computePredec
             int numOperands = LLVMGetNumOperands(terminator);
 
             for (int i = 0; i < numOperands; i++) {
-
-                // SHORTEN WITH get successor
 
                 // Extracting reference to successor basic block from the operand
                 LLVMValueRef successorLoc = LLVMGetOperand(terminator, i);
@@ -643,16 +669,7 @@ bool constantPropagation(LLVMValueRef function)
             }
         }
     }
-    //printAllSets(completeBBSet);
 }
-
-
-
-
-
-
-
-
 
 
 /***************** deleteLoadInsts ***********************/
@@ -751,6 +768,7 @@ static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef functio
         }
     }
 }
+
 
 
 /* Section 3: Testing. The following functions were used for development and debugging */

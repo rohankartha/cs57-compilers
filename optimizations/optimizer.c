@@ -51,10 +51,8 @@ void walkBasicblocks(LLVMValueRef function){
 	codeMap = constantFolding(function, codeMap);
 	cleanDeadCode(function, codeMap);
 
-	
-
 	// Global optimization
-	constantPropagation(function);
+	//constantPropagation(function);
 }
 
 
