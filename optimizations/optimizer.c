@@ -9,6 +9,7 @@
 #include <vector>
 #include <unordered_map>
 #include <set>
+#include <string.h>
 using namespace std;
 
 #define prt(x) if(x) { printf("%s\n", x); }
@@ -37,33 +38,46 @@ LLVMModuleRef createLLVMModel(char * filename)
 }
 
 
+void walkFunctions(LLVMModuleRef module) 
+{
+	LLVMValueRef function =  LLVMGetFirstFunction(module); 
 
-void walkBasicblocks(LLVMValueRef function){
-	deadCodeMap_t codeMap;
 	for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function);
  			 basicBlock;
   			 basicBlock = LLVMGetNextBasicBlock(basicBlock)) {
 
         // Local optimization
-        codeMap = removeCommonSubexpression(basicBlock, codeMap);
+        removeCommonSubexpression(basicBlock);
 	}
-	// Local optimization
-	codeMap = constantFolding(function, codeMap);
-	cleanDeadCode(function, codeMap);
 
-	// Global optimization
-	//constantPropagation(function);
-}
+	bool change = true;
+	while (change) {
+		printf("iteration\n");
 
+		// Global optimization
+		bool constantPropResult = constantPropagation(function);
 
-void walkFunctions(LLVMModuleRef module){
-	LLVMValueRef function =  LLVMGetFirstFunction(module); 
-	const char* funcName = LLVMGetValueName(function);	
+		// Local optimization
+		bool constantFoldResult = constantFolding(function);
+		bool deadCodeResult = cleanDeadCode(function);
 
-	printf("Function Name: %s\n", funcName);
-	walkBasicblocks(function);
-	printf("exitmain");
-	fflush(stdout);
+		if (constantFoldResult && deadCodeResult) {
+			printf("if1\n");
+			fflush(stdout);
+			if (constantPropResult) {
+				printf("if2\n");
+				fflush(stdout);
+				change = false;
+			}
+		}
+		else {
+			printf("if3\n");
+			change = true;
+		}
+		
+	}
+
+	return;
 }
 
 
@@ -80,7 +94,6 @@ int main(int argc, char** argv)
 	}
 
 	if (m != NULL){
-		//LLVMDumpModule(m);
 		LLVMPrintModuleToFile (m, "test_old.ll", NULL);
 		walkFunctions(m);
 		LLVMPrintModuleToFile (m, "test_new.ll", NULL);

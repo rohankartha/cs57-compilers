@@ -11,6 +11,7 @@
 /***************** dependencies ***********************/
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <stdio.h>
 #include <llvm-c/Core.h>
 #include <cstddef>
@@ -23,10 +24,10 @@ using namespace std;
 
 
 /***************** global function declarations ***********************/
-deadCodeMap_t removeCommonSubexpression(LLVMBasicBlockRef bb, deadCodeMap_t deadCode);
-deadCodeMap_t constantFolding(LLVMValueRef function, deadCodeMap_t deadCode);
+bool removeCommonSubexpression(LLVMBasicBlockRef bb);
+bool constantFolding(LLVMValueRef function);
 bool constantPropagation(LLVMValueRef function);
-void cleanDeadCode(LLVMValueRef function, deadCodeMap_t deadCode);
+bool cleanDeadCode(LLVMValueRef function);
 
 
 /***************** local function declarations ***********************/
@@ -68,11 +69,8 @@ void printVectorTwo(unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> 
 /* Section 1: Local Optimizations */
 
 /***************** removeCommonSubexpression ***********************/
-deadCodeMap_t removeCommonSubexpression(LLVMBasicBlockRef bb, deadCodeMap_t deadCode) 
+bool removeCommonSubexpression(LLVMBasicBlockRef bb) 
 {
-    // Extracting map to hold dead code to be deleted later
-    set<LLVMValueRef> deadMap = deadCode.deadCode;
-
     // Initializing vector to store instructions already encountered
     vector<LLVMValueRef> oldInstructions;
     int breakHelper = 0;
@@ -83,8 +81,8 @@ deadCodeMap_t removeCommonSubexpression(LLVMBasicBlockRef bb, deadCodeMap_t dead
             instruction = LLVMGetNextInstruction(instruction)) {
 
         // TESTING
-        char* instructionString = LLVMPrintValueToString(instruction);
-        printf("candidate: %s\n", instructionString);
+        // char* instructionString = LLVMPrintValueToString(instruction);
+        // printf("candidate: %s\n", instructionString);
 
         // Retrieving opcode of instruction
         LLVMOpcode opcode = LLVMGetInstructionOpcode(instruction);
@@ -124,7 +122,7 @@ deadCodeMap_t removeCommonSubexpression(LLVMBasicBlockRef bb, deadCodeMap_t dead
 
                     // TESTING
                     char* testTwo = LLVMPrintValueToString(oldInst);
-                    printf("old: %s\n", testTwo);
+                    //printf("old: %s\n", testTwo);
 
                     // If instruction is a load instruction, check for stores
                     if (opcode == LLVMLoad) {
@@ -139,24 +137,14 @@ deadCodeMap_t removeCommonSubexpression(LLVMBasicBlockRef bb, deadCodeMap_t dead
                                 // TESTING
                                 char* oldStoreLocStr = LLVMPrintValueToString(oldStoreLoc);
                                 char* newStoreLocStr = LLVMPrintValueToString(newOperands.at(0));
-                                printf("memloc1: %s\n", oldStoreLocStr);
-                                printf("memloc2: %s\n", newStoreLocStr);
+                                // printf("memloc1: %s\n", oldStoreLocStr);
+                                // printf("memloc2: %s\n", newStoreLocStr);
 
                                 // If store instruction does not write to same memory location as load, replace load
                                 if (oldStoreLoc != newOperands.at(0)) {
-
                                     // TESTING
-                                    printf("Common subexpression DETECTED\n\n");
-
-
+                                    //printf("Common subexpression DETECTED\n\n");
                                     LLVMReplaceAllUsesWith(instruction, oldInst);
-
-                                    // Adding instruction to to-be-deleted sets
-                                    deadMap.insert(instruction);
-                                }
-                                else {
-                                    // TESTING
-                                    printf("Common subexpression NOT DETECTED\n\n");
                                 }
                             }
                         }
@@ -168,10 +156,7 @@ deadCodeMap_t removeCommonSubexpression(LLVMBasicBlockRef bb, deadCodeMap_t dead
                             LLVMReplaceAllUsesWith(instruction, oldInst);
 
                             // TESTING
-                            printf("Common subexpression DETECTED\n\n");
-
-                            // Adding instruction to to-be-deleted sets
-                            deadMap.insert(instruction);
+                            //printf("Common subexpression DETECTED\n\n");
                         }
                     }
                     breakHelper = 1;
@@ -183,25 +168,21 @@ deadCodeMap_t removeCommonSubexpression(LLVMBasicBlockRef bb, deadCodeMap_t dead
             char* test = LLVMPrintValueToString(instruction);
 
             // TESTING
-            printf("Common subexpression NOT DETECTED\n\n");
+            //printf("Common subexpression NOT DETECTED\n\n");
 
             oldInstructions.push_back(instruction);
         }
         breakHelper = 0;
     }
-    deadCode.deadCode = deadMap;
-    return deadCode;
+    return true;
 }
 
 
 /***************** cleanDeadCode ***********************/
-void cleanDeadCode(LLVMValueRef function, deadCodeMap_t deadCode) 
+bool cleanDeadCode(LLVMValueRef function)
 {
-    // what functions can never be removed: store, ret, br, call
-    // clear deadcodemap?
-
-
-    set<LLVMValueRef> instrToDelete = deadCode.deadCode;
+    // Initializing vector to hold instructions-to-be-deleted
+    vector<LLVMValueRef> instToDel;
 
     // Iterating through each basic block
     for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function); 
@@ -213,50 +194,52 @@ void cleanDeadCode(LLVMValueRef function, deadCodeMap_t deadCode)
                 instruction != NULL; 
                 instruction = LLVMGetNextInstruction(instruction)) {
 
-            // Check if registers updated in load instructions are used after
-            if (LLVMGetInstructionOpcode(instruction) == LLVMLoad) {
-                LLVMValueRef instructionLHS = instruction;
+            // Store, ret, br, and call instructions should not be removed
+            bool validInst = true;
 
-                bool use = false;
-                LLVMValueRef instCheck = LLVMGetNextInstruction(instruction);
+            LLVMOpcode opcode = LLVMGetInstructionOpcode(instruction);
+            switch (opcode) {
+                case LLVMStore:
+                    validInst = false; 
+                    break;
+                case LLVMRet:
+                    validInst = false; 
+                    break;
+                case LLVMBr:
+                    validInst = false; 
+                    break;
+                case LLVMCall:
+                    validInst = false; 
+                    break;
+                case LLVMAlloca:
+                    validInst = false;
+                    break;
+                default:
+                    validInst = true;
+                    break;
+            }
 
-                for (instCheck; instCheck != NULL; instCheck = LLVMGetNextInstruction(instCheck)) {
-                    int numOperands = LLVMGetNumOperands(instCheck);
-
-                    for (int i = 0; i < numOperands; i++) {
-                        LLVMValueRef checkOp = LLVMGetOperand(instCheck, i);
-
-                        if (checkOp == instructionLHS) {
-                            use = true;
-                        }
-                    }
-                }
-
-                // If registers not used, add instructions to dead code vector
-                if (!use) {
-                    instrToDelete.insert(instruction);
+            // Collecting unused instructions in vector
+            if (validInst) {
+                LLVMUseRef instUse = LLVMGetFirstUse(instruction);
+                if (instUse == NULL) {
+                    instToDel.push_back(instruction);
                 }
             }
         }   
     }
 
-    // remove common subexpressions, old instructions from constant folding
-    printSet(instrToDelete);
-    fflush(stdout);
-
-    // Delete dead code
-    for (auto instDel = instrToDelete.begin(); instDel != instrToDelete.end(); ++instDel) {
-        LLVMInstructionEraseFromParent(*instDel);
+    for (auto delIter = instToDel.begin(); delIter != instToDel.end(); ++delIter) {
+        LLVMInstructionRemoveFromParent(*delIter);
     }
+    return true;
 }
 
 
 /***************** constantFolding ***********************/
-deadCodeMap_t constantFolding(LLVMValueRef function, deadCodeMap_t deadCode) 
+bool constantFolding(LLVMValueRef function)
 {
-    // Extracting map to hold dead code to be deleted later
-    set<LLVMValueRef> deadMap = deadCode.deadCode;
-
+    bool change = false;
     // Iterating through all basic blocks in the function
     for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function); 
             basicBlock;
@@ -269,36 +252,67 @@ deadCodeMap_t constantFolding(LLVMValueRef function, deadCodeMap_t deadCode)
             
             // Retrieve opcode for instruction
             LLVMOpcode opCode = LLVMGetInstructionOpcode(instruction);
-            bool deleteCode = false;
             LLVMValueRef constant;
+            bool store = false;
+            LLVMValueRef instructionHold;
+
+            // TESTING
+            char* test = LLVMPrintValueToString(instruction);
+            printf("inst: %s\n", test);
+            int numOper = LLVMGetNumOperands(instruction);
+            for (int i = 0; i < numOper; ++i) {
+                char* asf = LLVMPrintValueToString(LLVMGetOperand(instruction, i));
+                printf("    operand: %s\n", asf);
+
+                if (LLVMIsABinaryOperator(LLVMGetOperand(instruction, i)) != NULL) {
+                    printf("ADD\n");
+                }
+            }
+
+
+
+            if (opCode == LLVMStore) {
+                LLVMValueRef embeddedInst = LLVMGetOperand(instruction, 0);
+                opCode = LLVMGetInstructionOpcode(embeddedInst);
+                if (LLVMIsAInstruction(embeddedInst) != NULL && opCode == LLVMAdd) {
+                    printf("ASDFASDF\n");
+                    char* test = LLVMPrintValueToString(embeddedInst);
+                    printf("embed: %s\n", test);
+                    instructionHold = instruction;
+                    instruction = embeddedInst;
+                    store = true;
+                }
+            }
+
+
 
             // If instruction is add, subtract or multiply, replace with constant instruction
             switch (opCode) {
                 case LLVMAdd:
                     constant = LLVMConstAdd(LLVMGetOperand(instruction, 0), LLVMGetOperand(instruction, 1));
                     LLVMReplaceAllUsesWith(instruction, constant);
-                    deleteCode = true;
+                    change = true;
                     break;
                 case LLVMSub:
                     constant = LLVMConstSub(LLVMGetOperand(instruction, 0), LLVMGetOperand(instruction, 1));
                     LLVMReplaceAllUsesWith(instruction, constant);
-                    deleteCode = true;
+                    change = true;
                     break;
                 case LLVMMul:
                     constant = LLVMConstMul(LLVMGetOperand(instruction, 0), LLVMGetOperand(instruction, 1));
                     LLVMReplaceAllUsesWith(instruction, constant);
-                    deleteCode = true;
+                    change = true;
                     break;
             }
 
-            if (deleteCode) {
-                // Adding instruction to to-be-deleted sets
-                deadMap.insert(instruction);
-            }            
+            if (store) {
+                instruction = instructionHold;
+
+            }        
         }
     }
-    deadCode.deadCode = deadMap;
-    return deadCode;
+    // Returning true if optimizations made and false if no optimizations added
+    return !change;
 }
 
 
@@ -599,6 +613,11 @@ bool constantPropagation(LLVMValueRef function)
         }
     }
 
+    LLVMValueRef asdf = function;
+    char* func_old = LLVMPrintValueToString(asdf);
+    //printf("%s\n", func_old);
+
+
     bool change = true;
     while (change) {
         change = false;
@@ -664,12 +683,15 @@ bool constantPropagation(LLVMValueRef function)
                 else {
                     completeBBSet.inSets.insert({bb, inSet});
                 }
-
-                deleteLoadInsts;
+                deleteLoadInsts(completeBBSet, function);
             }
         }
     }
+    return true;
 }
+
+//LLVMGetFirstUse
+
 
 
 /***************** deleteLoadInsts ***********************/
@@ -677,7 +699,7 @@ static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef functio
 {
     // Initializing vector to hold set R for each basic block
     vector<set<LLVMValueRef>> rSets;
-    unordered_map<LLVMBasicBlockRef, vector<LLVMValueRef>> markedDelete;
+    unordered_map<LLVMBasicBlockRef, LLVMValueRef> markedDelete;
 
     // Iterating through each basic block
     for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); bb != NULL;
@@ -718,56 +740,142 @@ static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef functio
                     }
                 }
                 rSet = rSetCopy;
+            
+            
+            printf("Rset: \n");
+
+            //printSet(rSet);
+
             }
+        
 
-            // If instruction is a load instruction
-            else if (LLVMGetInstructionOpcode(instruction) == LLVMLoad) {
+        
 
-                // Finding store instructions in R that write to same memory location as instruction
-                LLVMValueRef memLoc = LLVMGetOperand(instruction, 1);
-                vector<LLVMValueRef> sameLocStore;
+                // If instruction is a load instruction
+                else if (LLVMGetInstructionOpcode(instruction) == LLVMLoad) {
 
-                for (auto sameLocStoreIter = rSet.begin(); sameLocStoreIter != rSet.end(); ++sameLocStoreIter) {
-                    LLVMValueRef storeInst = *sameLocStoreIter;
-                    if (LLVMGetOperand(storeInst, 1) == memLoc) {
-                        sameLocStore.push_back(instruction);
+                    // Finding store instructions in R that write to same memory location as instruction
+                    LLVMValueRef memLoc = LLVMGetOperand(instruction, 0);
+                    char* testStoreOne = LLVMPrintValueToString(instruction);
+                    printf("INSTRUCTION: %s\n", testStoreOne);
+                    fflush(stdout);
+                    //if (memLoc != NULL) {
+                        char* testStoreTwo = LLVMPrintValueToString(memLoc);
+                        printf("INSTRUCTION: %s\n", testStoreTwo);
+                        fflush(stdout);
+
+                    //}
+                    fflush(stdout);
+                    vector<LLVMValueRef> sameLocStore;
+
+                    //printf("INASDDGT: %s\n", testStoreTwo);
+
+                    // Finding all the store instructions in R that write to same address
+                    for (auto sameLocStoreIter = rSet.begin(); sameLocStoreIter != rSet.end(); ++sameLocStoreIter) {
+                        LLVMValueRef storeInst = *sameLocStoreIter;
+
+
+                        // char* testStore = LLVMPrintValueToString(storeInst);
+                        // printf("STORE: %s\n", testStore);
+                        // char* testStoreTwo = LLVMPrintValueToString(LLVMGetOperand(storeInst, 1));
+                        // printf("MEMLOC: %s\n", testStoreTwo);
+
+
+                        if (LLVMGetOperand(storeInst, 1) == memLoc) {
+                            printf("THISISTEST\n");
+                            sameLocStore.push_back(storeInst);
+                        }
                     }
+
+                    // If all these store instructions store the same constant
+                    bool same = true;
+                    int i = 0;
+                    auto sameIter = sameLocStore.begin();
+                    LLVMValueRef holder;
+                    LLVMValueRef constOp;
+
+
+                    for (auto sameIter = sameLocStore.begin(); sameIter != sameLocStore.end(); ++sameIter) {
+
+                        printf("sameIter = %s\n", LLVMPrintValueToString(*sameIter));
+                        fflush(stdout);
+                        constOp = LLVMGetOperand(*sameIter, 0);
+
+                        // //ISSUE
+                        if (LLVMIsAConstant(constOp) != NULL) {
+                        //         constOp = LLVMGetOperand(*sameIter, 0);
+
+                            if (i == 0) {
+                                printf("first\n");
+                                holder = constOp;
+                                i++;
+                            }
+
+                            
+
+                                if (holder != LLVMGetOperand(*sameIter, 0)) {
+                                    same == false;
+                                }
+                        }
                 }
 
-                // If all these store instructions store the same constant
-                bool same = true;
-                for (auto sameIter = sameLocStore.begin(); sameIter != sameLocStore.end(); ++sameIter) {
-                    if (LLVMGetOperand(*sameIter, 0) != LLVMGetOperand(instruction, 0)) {
-                        same = false;
-                    }
-                }
-
-                if (same) {
+                if (same && i == 1) {
                     // Replacing all uses of instruction with constant instruction
-                    long long constVal = LLVMConstIntGetSExtValue(LLVMGetOperand(instruction, 0));
+                    printf("ASDFASDF\n");
+
+
+
+
+                    long long constVal = LLVMConstIntGetSExtValue(constOp);
                     LLVMTypeRef intType = LLVMInt32Type();
                     LLVMValueRef constStore = LLVMConstInt(intType, constVal, true);
 
                     for (auto sameIter = sameLocStore.begin(); sameIter != sameLocStore.end(); ++sameIter) {
-                        LLVMReplaceAllUsesWith(*sameIter, constStore);
+                        char* test = LLVMPrintValueToString(constStore);
+                        printf("prop: %s\n", test);
+                        LLVMReplaceAllUsesWith(instruction, constStore);
                     }
 
                     // Marking old instruction for deletion
-                    markedDelete.insert({bb, sameLocStore});
+                    markedDelete.insert({bb, instruction});
                 }
             }
-        }
+                }
     }
     
     // Deleting all instructions marked for deletion
     for (auto delVecIter = markedDelete.begin(); delVecIter != markedDelete.end(); ++delVecIter) {
-        vector<LLVMValueRef> markDelVector = delVecIter->second;
+        LLVMValueRef markDel = delVecIter->second;
 
-        for (auto delSetIter = markDelVector.begin(); delSetIter != markDelVector.end(); ++delSetIter) {
-            LLVMInstructionEraseFromParent(*delSetIter);
-        }
+            LLVMInstructionEraseFromParent(markDel);
+        
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
