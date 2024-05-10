@@ -55,10 +55,13 @@ void walkFunctions(LLVMModuleRef module)
 		printf("iteration\n");
 
 		// Global optimization
+		printf("Constant prop\n");
 		bool constantPropResult = constantPropagation(function);
 
 		// Local optimization
+		printf("Constant fold\n");
 		bool constantFoldResult = constantFolding(function);
+		printf("dead code\n");
 		bool deadCodeResult = cleanDeadCode(function);
 
 		if (constantFoldResult && deadCodeResult) {

@@ -22,3 +22,5 @@ bool removeCommonSubexpression(LLVMBasicBlockRef bb);
 bool constantFolding(LLVMValueRef function);
 bool constantPropagation(LLVMValueRef function);
 bool cleanDeadCode(LLVMValueRef function);
+
+// load parameter correctly
