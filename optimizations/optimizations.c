@@ -1,12 +1,10 @@
 /**
  * optimizations.c
  * 
- * 
+ * Rohan Kartha – May 2024
  * 
 */
 
-
-// constant prop: get rid of loads
 
 /***************** dependencies ***********************/
 #include <stdlib.h>
@@ -41,31 +39,6 @@ static vector<set<LLVMValueRef>> computeInandOut(LLVMValueRef function, vector<L
 static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef function);
 
 
-/***************** test function declarations ***********************/
-static void printSet(set<LLVMValueRef> testSet);
-static void printAllSets(basicBlockSets_t completeBBSet);
-static char extractBlockName(char* bbAsString);
-
-
-
-
-void printVector(unordered_map<LLVMBasicBlockRef, vector<LLVMValueRef>> allStoreSet);
-void printVectorTwo(unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> allStoreSet);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* Section 1: Local Optimizations */
 
 /***************** removeCommonSubexpression ***********************/
@@ -79,10 +52,6 @@ bool removeCommonSubexpression(LLVMBasicBlockRef bb)
     for (LLVMValueRef instruction = LLVMGetFirstInstruction(bb); 
             instruction != NULL; 
             instruction = LLVMGetNextInstruction(instruction)) {
-
-        // TESTING
-        // char* instructionString = LLVMPrintValueToString(instruction);
-        // printf("candidate: %s\n", instructionString);
 
         // Retrieving opcode of instruction
         LLVMOpcode opcode = LLVMGetInstructionOpcode(instruction);
@@ -103,7 +72,6 @@ bool removeCommonSubexpression(LLVMBasicBlockRef bb)
 
                 for (int i = 0; i < newNumOperands; i++) {
                     LLVMValueRef newOperand = LLVMGetOperand(instruction, i);
-                    char* op = LLVMPrintValueToString(newOperand);
                     newOperands.push_back(newOperand);
                 }
 
@@ -113,16 +81,11 @@ bool removeCommonSubexpression(LLVMBasicBlockRef bb)
 
                 for (int i = 0; i < oldNumOperands; i++) {
                     LLVMValueRef oldOperand = LLVMGetOperand(oldInst, i);
-                    char* op = LLVMPrintValueToString(oldOperand);
                     oldOperands.push_back(oldOperand);
                 }
 
                 // If operands of new and old instructions match, 
                 if (newOperands == oldOperands) {
-
-                    // TESTING
-                    char* testTwo = LLVMPrintValueToString(oldInst);
-                    //printf("old: %s\n", testTwo);
 
                     // If instruction is a load instruction, check for stores
                     if (opcode == LLVMLoad) {
@@ -134,16 +97,8 @@ bool removeCommonSubexpression(LLVMBasicBlockRef bb)
                                 // Retrieve memory location that store instruction writes to 
                                 LLVMValueRef oldStoreLoc = LLVMGetOperand(*iterTwo, 1);
 
-                                // TESTING
-                                char* oldStoreLocStr = LLVMPrintValueToString(oldStoreLoc);
-                                char* newStoreLocStr = LLVMPrintValueToString(newOperands.at(0));
-                                // printf("memloc1: %s\n", oldStoreLocStr);
-                                // printf("memloc2: %s\n", newStoreLocStr);
-
                                 // If store instruction does not write to same memory location as load, replace load
                                 if (oldStoreLoc != newOperands.at(0)) {
-                                    // TESTING
-                                    //printf("Common subexpression DETECTED\n\n");
                                     LLVMReplaceAllUsesWith(instruction, oldInst);
                                 }
                             }
@@ -154,9 +109,6 @@ bool removeCommonSubexpression(LLVMBasicBlockRef bb)
                     else {
                         if (opcode != LLVMAlloca) {
                             LLVMReplaceAllUsesWith(instruction, oldInst);
-
-                            // TESTING
-                            //printf("Common subexpression DETECTED\n\n");
                         }
                     }
                     breakHelper = 1;
@@ -165,11 +117,6 @@ bool removeCommonSubexpression(LLVMBasicBlockRef bb)
             }
         }
         if (breakHelper == 0) {
-            char* test = LLVMPrintValueToString(instruction);
-
-            // TESTING
-            //printf("Common subexpression NOT DETECTED\n\n");
-
             oldInstructions.push_back(instruction);
         }
         breakHelper = 0;
@@ -240,6 +187,7 @@ bool cleanDeadCode(LLVMValueRef function)
 bool constantFolding(LLVMValueRef function)
 {
     bool change = false;
+
     // Iterating through all basic blocks in the function
     for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function); 
             basicBlock;
@@ -250,41 +198,22 @@ bool constantFolding(LLVMValueRef function)
                 instruction;
                 instruction = LLVMGetNextInstruction(instruction)) {
             
-            // Retrieve opcode for instruction
+            // Retrieving opcode for instruction
             LLVMOpcode opCode = LLVMGetInstructionOpcode(instruction);
             LLVMValueRef constant;
             bool store = false;
             LLVMValueRef instructionHold;
 
-            // TESTING
-            char* test = LLVMPrintValueToString(instruction);
-            printf("inst: %s\n", test);
-            int numOper = LLVMGetNumOperands(instruction);
-            for (int i = 0; i < numOper; ++i) {
-                char* asf = LLVMPrintValueToString(LLVMGetOperand(instruction, i));
-                printf("    operand: %s\n", asf);
-
-                if (LLVMIsABinaryOperator(LLVMGetOperand(instruction, i)) != NULL) {
-                    printf("ADD\n");
-                }
-            }
-
-
-
+            // If instruction is a store instruction, check for embedded operation as operand
             if (opCode == LLVMStore) {
                 LLVMValueRef embeddedInst = LLVMGetOperand(instruction, 0);
                 opCode = LLVMGetInstructionOpcode(embeddedInst);
                 if (LLVMIsAInstruction(embeddedInst) != NULL && opCode == LLVMAdd) {
-                    printf("ASDFASDF\n");
-                    char* test = LLVMPrintValueToString(embeddedInst);
-                    printf("embed: %s\n", test);
                     instructionHold = instruction;
                     instruction = embeddedInst;
                     store = true;
                 }
             }
-
-
 
             // If instruction is add, subtract or multiply, replace with constant instruction
             switch (opCode) {
@@ -307,14 +236,12 @@ bool constantFolding(LLVMValueRef function)
 
             if (store) {
                 instruction = instructionHold;
-
             }        
         }
     }
     // Returning true if optimizations made and false if no optimizations added
     return !change;
 }
-
 
 
 /* Section 2: Global Optimizations */
@@ -433,8 +360,6 @@ static vector<set<LLVMValueRef>> computeInandOut(LLVMValueRef function, vector<L
 
             // Saving old "out" set of block
             set<LLVMValueRef> oldOut = blockOutSet;
-
-            
             set<LLVMValueRef> genSet = blockGenSet;
 
             // Retrieving the block's "kill" set
@@ -459,7 +384,6 @@ static vector<set<LLVMValueRef>> computeInandOut(LLVMValueRef function, vector<L
     }
     return vector<set<LLVMValueRef>>();
 }
-
 
 
 /***************** computePredecessors ***********************/
@@ -508,7 +432,6 @@ static unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> computePredec
     predecessorMap.insert({LLVMGetFirstBasicBlock(function), vector <LLVMBasicBlockRef> ()});
     return predecessorMap;
 }
-
 
 
 /***************** findSetUnion ***********************/
@@ -613,11 +536,6 @@ bool constantPropagation(LLVMValueRef function)
         }
     }
 
-    LLVMValueRef asdf = function;
-    char* func_old = LLVMPrintValueToString(asdf);
-    //printf("%s\n", func_old);
-
-
     bool change = true;
     while (change) {
         change = false;
@@ -650,7 +568,7 @@ bool constantPropagation(LLVMValueRef function)
             }
         }
 
-        // Update completeBBSets
+        // Updating completeBBSets
         for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); bb != NULL;
                 bb = LLVMGetNextBasicBlock(bb)) {
             
@@ -690,17 +608,6 @@ bool constantPropagation(LLVMValueRef function)
     return true;
 }
 
-//LLVMGetFirstUse
-
-
-
-
-
-
-
-
-
-
 
 /***************** deleteLoadInsts ***********************/
 static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef function)
@@ -712,8 +619,6 @@ static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef functio
     // Iterating through each basic block
     for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); bb != NULL;
             bb = LLVMGetNextBasicBlock(bb)) {
-        
-        printf("New basic block\n");
 
         // Retrieving "in" set for the basic block
         set<LLVMValueRef> rSet;
@@ -735,20 +640,10 @@ static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef functio
             // Skipping any instructions that have been marked as deleted
             auto delInstSet = markedDelete.find(bb);
             if (delInstSet != markedDelete.end()) {
-                printf("TEST1\n");
                 set<LLVMValueRef> delInst = delInstSet->second;
 
-                if (delInst.find(instruction) != delInst.end()) {
-                    printf("TEST2\n");
-                    fflush(stdout);
-                    continue;
-                }
+                if (delInst.find(instruction) != delInst.end()) { continue; }
             }
-
-            char* asdf = LLVMPrintValueToString(instruction);
-            printf("-------------------------------\n");
-            printf("Next instruction: %s\n", asdf);
-            printf("-------------------------------\n");
             
             // If instruction is a store instruction
             if (LLVMGetInstructionOpcode(instruction) == LLVMStore) {
@@ -769,38 +664,14 @@ static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef functio
                     }
                 }
                 rSet = rSetCopy;
-            
-            
-                // printf("Rset: \n");
-
-                // printSet(rSet);
-
             }
 
             // If instruction is a load instruction
             else if (LLVMGetInstructionOpcode(instruction) == LLVMLoad) {
 
-                // auto retrieveDel = markedDelete.find(bb);
-
-                // if (retrieveDel != markedDelete.end()) {
-                //     LLVMValueRef oldInst = retrieveDel->second;
-
-                // }
-
-                char* potLoadInst = LLVMPrintValueToString(instruction);
-                printf("Potential load instruction: %s\n", potLoadInst);
-                printf("-------------------------------\n");
-
                 // Finding store instructions in R that write to same memory location as instruction reads from
                 LLVMValueRef memLoc = LLVMGetOperand(instruction, 0);
-
-                //}
-                fflush(stdout);
                 vector<LLVMValueRef> sameLocStore;
-
-                //printf("INASDDGT: %s\n", testStoreTwo);
-
-                printf("All store instructions in R that write to same address: \n");
                 bool nonemptysetcheck = false;
 
                 // Finding all the store instructions in R that write to same address
@@ -808,53 +679,31 @@ static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef functio
 
                     LLVMValueRef storeInst = *sameLocStoreIter;
                     if (LLVMGetOperand(storeInst, 1) == memLoc) {
-                        printf("asdfasdfasdfasd\n");
-                        fflush(stdout);
                         nonemptysetcheck = true;
-
-
-                        char* testStore = LLVMPrintValueToString(storeInst);
-                        printf("  %s\n", testStore);
-                        char* testStoreTwo = LLVMPrintValueToString(LLVMGetOperand(storeInst, 1));
-                        //printf("    address: %s\n", testStoreTwo);
-
                         sameLocStore.push_back(storeInst);
                     }
                 }
 
                 // Checking if all these store instructions store the same constant
                 bool same = true;
-                int i = 0;
                 auto sameIter = sameLocStore.begin();
                 LLVMValueRef holder;
-
                 bool isConstant = true;
 
-
                 for (auto sameIter = sameLocStore.begin(); sameIter != sameLocStore.end(); ++sameIter) {
-
-                    //printf("sameIter = %s\n", LLVMPrintValueToString(*sameIter));
-                    fflush(stdout);
                     LLVMValueRef holder;
 
-                    // //ISSUE
                     if (!LLVMIsAConstant(LLVMGetOperand(*sameIter, 0))) {
                         isConstant = false;
                     }
                 }
 
-
                 LLVMValueRef constOp;
                 if (isConstant && !sameLocStore.empty()) {
-                    printf("Is constant\n");
-                    fflush(stdout);
                     sameIter = sameLocStore.begin();
                     constOp = LLVMGetOperand(*sameIter, 0);
                     ++sameIter;
                 }
-
-
-
 
                 bool sameConstant = true;
                 
@@ -868,43 +717,22 @@ static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef functio
                     }
                 }
 
-                // Entering if loop only if sameLocStore is not empty
+                // If conditions satisfied, replacing all uses of instruction with constant instruction
                 if (isConstant && sameConstant && nonemptysetcheck) {
-                    // Replacing all uses of instruction with constant instruction
-                    //printf("ASDFASDF\n");
-
 
                     long long constVal = LLVMConstIntGetSExtValue(constOp);
                     LLVMTypeRef intType = LLVMInt32Type();
                     LLVMValueRef constStore = LLVMConstInt(intType, constVal, true);
-
-                    char* constStoreString = LLVMPrintValueToString(constStore);
-                    printf("Is constant the same?: %s\n", constStoreString);
-                    fflush(stdout);
-
-                    for (auto sameIter = sameLocStore.begin(); sameIter != sameLocStore.end(); ++sameIter) {
-                        char* test = LLVMPrintValueToString(constStore);
-                        printf("prop: %s\n", test);
-                    }
-
                     LLVMReplaceAllUsesWith(instruction, constStore);
 
-                    printf("Replacing instruction\n");
-
-                    char* functionState = LLVMPrintValueToString(function);
-                    printf("function state: \n%s\n", functionState);
-
-                    // remove old instructioon from rset and replace with new one
+                    // remove old instruction from rset and replace with new one
                     rSet.erase(instruction);
                     rSet.insert(constStore);
 
                     // Marking old instruction for deletion
                     auto delInstInBB = markedDelete.find(bb);
-                    printf("TEST3\n");
 
                     if (delInstInBB != markedDelete.end()) {
-                        printf("Adding instruction to delete vector\n");
-                        fflush(stdout);
                         delInstInBB->second.insert(instruction);
                     }
                     else {
@@ -915,214 +743,5 @@ static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef functio
                 }
             }
         }
-
-
-        // testing
-        for (auto delVecIter = markedDelete.begin(); delVecIter != markedDelete.end(); ++delVecIter) {
-            set<LLVMValueRef> markDel = delVecIter->second;
-
-            if (!markDel.empty()) {
-
-                for (auto delItemIter = markDel.begin(); delItemIter != markDel.end(); ++delItemIter) {
-                    char* itemdel = LLVMPrintValueToString(*delItemIter);
-                    printf("Deleteinst: %s\n", itemdel);
-                    fflush(stdout);
-                }
-            }
-        }
-        printf("Delete\n");
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* Section 3: Testing. The following functions were used for development and debugging */
-
-/***************** printAllSets ***********************/
-static void printAllSets(basicBlockSets_t completeBBSet) 
-{
-    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> genSets = completeBBSet.genSets;
-    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> killSets = completeBBSet.killSets;
-    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> inSets = completeBBSet.inSets;
-    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> outSets = completeBBSet.outSets;
-
-    printf("-----------------------------------------------------------\n");
-    printf("GEN SETS: \n");
-    printf("-----------------------------------------------------------\n");
-
-    for (auto it = genSets.begin(); it != genSets.end(); ++it) {
-        LLVMBasicBlockRef blockName = it->first;
-        set<LLVMValueRef> blockSet = it->second;
-        extractBlockName(LLVMPrintValueToString(LLVMBasicBlockAsValue(blockName)));
-        printSet(blockSet);
-    }
-
-    printf("-----------------------------------------------------------\n");
-    printf("KILL SETS: \n");
-    printf("-----------------------------------------------------------\n");
-
-    for (auto it = killSets.begin(); it != killSets.end(); ++it) {
-        LLVMBasicBlockRef blockName = it->first;
-        set<LLVMValueRef> blockSet = it->second;
-        extractBlockName(LLVMPrintValueToString(LLVMBasicBlockAsValue(blockName)));
-        printSet(blockSet);
-    }
-
-    printf("-----------------------------------------------------------\n");
-    printf("IN SETS: \n");
-    printf("-----------------------------------------------------------\n");
-
-    for (auto it = inSets.begin(); it != inSets.end(); ++it) {
-        LLVMBasicBlockRef blockName = it->first;
-        set<LLVMValueRef> blockSet = it->second;
-        extractBlockName(LLVMPrintValueToString(LLVMBasicBlockAsValue(blockName)));
-        printSet(blockSet);
-    }
-
-    printf("-----------------------------------------------------------\n");
-    printf("OUT SETS: \n");
-    printf("-----------------------------------------------------------\n");
-
-    for (auto it = outSets.begin(); it != outSets.end(); ++it) {
-        LLVMBasicBlockRef blockName = it->first;
-        set<LLVMValueRef> blockSet = it->second;
-        extractBlockName(LLVMPrintValueToString(LLVMBasicBlockAsValue(blockName)));
-        printSet(blockSet);
-    }
-    fflush(stdout);
-}
-
-
-/***************** printSet ***********************/
-static void printSet(set<LLVMValueRef> testSet) 
-{
-
-    if (testSet.empty()) {
-        return;
-    }
-
-
-
-    for (auto it = testSet.begin(); it != testSet.end(); ++it) {
-        char* test = LLVMPrintValueToString(*it);
-        printf("%s\n", test);
-    }
-}
-
-
-/***************** extractBlockName ***********************/
-static char extractBlockName(char* bbAsString) {
-    char blockName = bbAsString[1];
-    char blockNameTwo = bbAsString[2];
-    printf("\n\nBlock: %c%c\n\n", blockName, blockNameTwo);
-    return blockName;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-void printVector(unordered_map<LLVMBasicBlockRef, vector<LLVMValueRef>> allStoreSet) {
-
-    for (auto it = allStoreSet.begin(); it != allStoreSet.end(); ++it) {
-        
-        LLVMBasicBlockRef test = it->first;
-        char* testtest = LLVMPrintValueToString(LLVMBasicBlockAsValue(test));  
-        
-        
-        printf("%s\n", testtest);
-        vector<LLVMValueRef> testTwo = it->second;
-
-        for (auto iter = testTwo.begin(); iter != testTwo.end(); ++iter) {
-            char* testThree = LLVMPrintValueToString(*iter);
-            printf("%s\n", testThree);
-        }
-        printf("\n");
-    }
-}
-
-
-
-
-
-
-// WHAT do we do for return terminators
-void printVectorTwo(unordered_map<LLVMBasicBlockRef, vector<LLVMBasicBlockRef>> allStoreSet) {
-
-    for (auto it = allStoreSet.begin(); it != allStoreSet.end(); ++it) {
-        
-        LLVMBasicBlockRef test = it->first;
-        char* testtest = LLVMPrintValueToString(LLVMBasicBlockAsValue(test));
-        printf("PARENT: \n");
-        printf("%s\n", testtest);
-        vector<LLVMBasicBlockRef> testTwo = it->second;
-
-        printf("PREDECESSORS: \n");
-        for (auto iter = testTwo.begin(); iter != testTwo.end(); ++iter) {
-            char* testThree = LLVMPrintValueToString(LLVMBasicBlockAsValue(*iter));
-            printf("%s\n", testThree);
-        }
-        //printf("\n");
-        fflush(stdout);
     }
 }

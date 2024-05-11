@@ -96,10 +96,15 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
+	
+
 	if (m != NULL){
 		LLVMPrintModuleToFile (m, "test_old.ll", NULL);
 		walkFunctions(m);
 		LLVMPrintModuleToFile (m, "test_new.ll", NULL);
+
+		LLVMDisposeModule(m);
+		LLVMShutdown();
 	}
 	else {
 	    fprintf(stderr, "m is NULL\n");

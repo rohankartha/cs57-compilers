@@ -47,3 +47,6 @@ in-class
 testing
 test_new.ll
 optimizer_test_results
+test_old.ll
+testfunctions.txt
+test_new.ll
