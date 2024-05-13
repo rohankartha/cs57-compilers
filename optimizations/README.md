@@ -8,11 +8,32 @@
 
 ### Files
 
-`optimizations.c`:
-`optimizations.h`:
-`optimizer.c`:
-`Core.h`: 
+`optimizations.c`: defines and implements local and global optimization routines
+`optimizer.c`: defines and implements wrapper functions for optimization routines
+`Core.h`: references various LLVM-Core C functions and types used
 
-### Testing
-
-To test `optimizations`:
+```none
+|-- Core.h
+|-- Makefile
+|-- README.md
+|-- optimizations.c
+|-- optimizations.h
+|-- optimizations.o
+|-- optimizer
+|-- optimizer.c
+|-- optimizer.h
+|-- optimizer.o
+|-- test_new.ll
+|-- test_old.ll
+`-- testing
+    |-- cfold_add.ll
+    |-- cfold_mul.ll
+    |-- cfold_ops.c
+    |-- cfold_sub.ll
+    |-- p2_common_subexpr.c
+    |-- p2_common_subexpr.ll
+    |-- p3_const_prop.c
+    |-- p3_const_prop.ll
+    |-- p4_const_prop.c
+    |-- p4_const_prop.ll
+```

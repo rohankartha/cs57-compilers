@@ -5,6 +5,7 @@
     #include <cstddef>
     #include <vector>
     #include "ast/ast.h"
+    #include "semantic-analysis.h"
 
     extern int yylex();
     extern int yylex_destroy();
@@ -12,7 +13,7 @@
     extern int yytext;
     int yyerror(const char *);
     extern FILE* yyin;
-    extern astNode* root;
+    astNode* root;
 %}
 
 %union{
@@ -43,25 +44,25 @@
 
 program     : EXTERN VOID PRINT LPAREN INTEGER RPAREN SEMICOLON {}
             | program EXTERN INTEGER READ LPAREN RPAREN SEMICOLON {}
-            | program INTEGER FUNC LPAREN INTEGER VARIABLE RPAREN LCURL block RCURL {
+            | program INTEGER FUNC LPAREN INTEGER VARIABLE RPAREN block             {
                                                                                         astNode* print_func = createExtern("print");
                                                                                         astNode* read_func = createExtern("read");
                                                                                         astNode* param = createVar($6);
-                                                                                        astNode* new_func = createFunc("func", param, $9);
+                                                                                        astNode* new_func = createFunc("func", param, $8);
                                                                                         root = createProg(print_func, read_func, new_func);
                                                                                         $$ = root;
                                                                                         free($6);
                                                                                     }
 
-block       : declarations statements       {
-                                                vector<astNode*> *block = new vector<astNode*>();
-                                                block->insert(block->end(), $1->begin(), $1->end());
-                                                block->insert(block->end(), $2->begin(), $2->end());
-                                                $$ = createBlock(block);
-                                                delete($1);
-                                                delete($2);
-                                            }
-            | statements                    { $$ = createBlock($1); }
+block       : LCURL declarations statements RCURL       {
+                                                            vector<astNode*> *block = new vector<astNode*>();
+                                                            block->insert(block->end(), $2->begin(), $2->end());
+                                                            block->insert(block->end(), $3->begin(), $3->end());
+                                                            $$ = createBlock(block);
+                                                            delete($2);
+                                                            delete($3);
+                                                        }
+            | LCURL statements RCURL                    { $$ = createBlock($2); }
 
 declarations: declarations declaration   { $$ = $1; $$->push_back($2); }
             | declaration                { $$ = new vector<astNode*>(); $$->push_back($1); }  
@@ -77,10 +78,10 @@ statement   : RETURN LPAREN term RPAREN SEMICOLON                               
             | RETURN LPAREN expression RPAREN SEMICOLON                               { $$ = createRet($3); }
             | term EQUAL term SEMICOLON                                               { $$ = createAsgn($1, $3); }
             | term EQUAL expression SEMICOLON                                         { $$ = createAsgn($1, $3); }
-            | WHILE LPAREN condition RPAREN LCURL block RCURL                         { $$ = createWhile($3, $6); }
-            | IF LPAREN condition RPAREN LCURL block RCURL ELSE LCURL statement RCURL { $$ = createIf($3, $6, $10); }
-            | IF LPAREN condition RPAREN LCURL block RCURL                            { $$ = createIf($3, $6, NULL); }
+            | WHILE LPAREN condition RPAREN statement                                 { $$ = createWhile($3, $5); }
+            | IF LPAREN condition RPAREN statement ELSE statement                     { $$ = createIf($3, $5, $7); }
             | IF LPAREN condition RPAREN statement                                    { $$ = createIf($3, $5, NULL); }
+            | block                                                            
             | function SEMICOLON
 
 function    : READ LPAREN RPAREN                    { $$ = createCall("read", NULL); }

@@ -18,7 +18,7 @@
 #include <algorithm>
 using namespace std;
 
-/***************** global type declarations ***********************/
+/***************** local-global type declarations ***********************/
 typedef struct basicBlockSets {
     unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> genSets;
     unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> killSets;
@@ -26,7 +26,7 @@ typedef struct basicBlockSets {
     unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> outSets;
 } basicBlockSets_t;
 
-/***************** global function declarations ***********************/
+/***************** local-global function declarations ***********************/
 bool removeCommonSubexpression(LLVMBasicBlockRef bb);
 bool constantFolding(LLVMValueRef function);
 bool constantPropagation(LLVMValueRef function);

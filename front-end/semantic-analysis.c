@@ -10,12 +10,13 @@
 #include <cstddef>
 #include <stack>
 #include "ast/ast.h"
+#include "semantic-analysis.h"
 #include <cstdio>
 #include <cstring>
 using namespace std;
 
 /**************** global variables ****************/
-extern astNode* root;
+astNode* root = NULL;
 
 /**************** function prototypes ****************/
 bool semanticAnalysis();
@@ -182,7 +183,7 @@ bool analyzeStmtNode(stack<vector<char*>> *stStack, astStmt stmt, int code)
         }
 
         // Popping symbol table off of the stack
-        if (!stStack->empty()) {
+        if (!stStack->empty() && code == 1) {
             stStack->pop();
         }
     }
