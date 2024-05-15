@@ -21,7 +21,7 @@
 using namespace std;
 
 
-/***************** global function declarations ***********************/
+/***************** local-global function declarations ***********************/
 bool removeCommonSubexpression(LLVMBasicBlockRef bb);
 bool constantFolding(LLVMValueRef function);
 bool constantPropagation(LLVMValueRef function);

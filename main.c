@@ -23,6 +23,7 @@
 #include <unordered_map>
 #include <set>
 #include <string.h>
+#include "irbuilder/irbuilder.h"
 extern FILE* yyin;
 extern int yylex_destroy();
 using namespace std;
@@ -73,19 +74,27 @@ int main(int argc, char* argv[])
     }
 
     // Free memory holding AST
-    freeNode(root);
+    //freeNode(root);
+
+
+
+    /* Section 2: IR builder */
+    unordered_map<string, LLVMValueRef> varLocs = renameVariables(root);
+
+
+    
 
 
 
 
 
     /* Section 3: Optimizations */
-    LLVMPrintModuleToFile (m, "test_old.ll", NULL);
-	walkFunctions(m);
-	LLVMPrintModuleToFile (m, "test_new.ll", NULL);
+    // LLVMPrintModuleToFile (m, "test_old.ll", NULL);
+	// walkFunctions(m);
+	// LLVMPrintModuleToFile (m, "test_new.ll", NULL);
 
-	LLVMDisposeModule(m);
-	LLVMShutdown();
+	// LLVMDisposeModule(m);
+	// LLVMShutdown();
 
     return 0;
 }

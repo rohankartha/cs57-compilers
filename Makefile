@@ -7,8 +7,10 @@ AST = front-end/ast
 FLAGS = `llvm-config-15 --cxxflags --ldflags --libs core` -I /usr/include/llvm-c-15
 LIBS = mini_c_compiler.a
 FE = front-end
+#IRB = irbuilder
 OPT = optimizations
-OBJS = semantic-analysis.o ast.o lex.yy.o y.tab.o optimizer.o optimizations.o
+OBJS = semantic-analysis.o ast.o lex.yy.o y.tab.o optimizer.o optimizations.o 
+#irbuilder.o
 
 .PHONY: all library compiler syntaxanalyzer clean
 
@@ -34,11 +36,13 @@ semantic-analysis.o: $(FE)/semantic-analysis.h
 ast.o: $(AST)/ast.h
 y.tab.o: $(FE)/y.tab.h 
 optimizer.o: $(OPT)/optimizer.h 
-optimizations.o: $(OPT)/optimizations.h 
+optimizations.o: $(OPT)/optimizations.h
+#irbuilder.o: $(IRB)/irbuilder.h 
 
 
-##### Make object files #####
-optimizations: front-end
+##### Make object files #####ir-builder: optimizations g++ -g -I /usr/include/llvm-c-15 -c $(IRB)/irbuilder.c
+
+optimizations: front-end syntaxanalyzer
 	g++ -g -I /usr/include/llvm-c-15 -c $(OPT)/optimizations.c 
 	g++ -g -I /usr/include/llvm-c-15 -c $(OPT)/optimizer.c
 
