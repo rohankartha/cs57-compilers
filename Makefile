@@ -7,10 +7,9 @@ AST = front-end/ast
 FLAGS = `llvm-config-15 --cxxflags --ldflags --libs core` -I /usr/include/llvm-c-15
 LIBS = mini_c_compiler.a
 FE = front-end
-#IRB = irbuilder
+IRB = irbuilder
 OPT = optimizations
-OBJS = semantic-analysis.o ast.o lex.yy.o y.tab.o optimizer.o optimizations.o 
-#irbuilder.o
+OBJS = semantic-analysis.o ast.o lex.yy.o y.tab.o optimizer.o optimizations.o irbuilder.o
 
 .PHONY: all library compiler syntaxanalyzer clean
 
@@ -21,13 +20,15 @@ all: compiler
 
 ##### 
 compiler:
-	g++ -g main.c $(FLAGS) $(LIBS) -o compiler
+	g++ -g main.c $(OBJS) $(FLAGS) -o compiler
+
+# $(LIBS)
 
 
 ##### Make library of object files
-library: syntaxanalyzer front-end optimizations modules
+library: syntaxanalyzer front-end optimizations irbuilder modules
 
-modules: optimizations
+modules: irbuilder
 	ar cr mini_c_compiler.a $(OBJS)
 
 
@@ -37,10 +38,12 @@ ast.o: $(AST)/ast.h
 y.tab.o: $(FE)/y.tab.h 
 optimizer.o: $(OPT)/optimizer.h 
 optimizations.o: $(OPT)/optimizations.h
-#irbuilder.o: $(IRB)/irbuilder.h 
+irbuilder.o: $(IRB)/irbuilder.h 
 
 
-##### Make object files #####ir-builder: optimizations g++ -g -I /usr/include/llvm-c-15 -c $(IRB)/irbuilder.c
+##### Make object files #####
+irbuilder: front-end syntaxanalyzer optimizations 
+	g++ -g -I /usr/include/llvm-c-15 -c $(IRB)/irbuilder.c
 
 optimizations: front-end syntaxanalyzer
 	g++ -g -I /usr/include/llvm-c-15 -c $(OPT)/optimizations.c 
@@ -59,3 +62,6 @@ clean:
 	rm -f *.o y.tab.c y.tab.h y.output lex.yy.c
 	rm -f compiler
 	rm -f test_new.ll test_old.ll
+
+clean-lib:
+	rm -f mini_c_compiler.a
