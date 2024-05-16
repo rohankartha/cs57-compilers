@@ -20,16 +20,12 @@ all: compiler
 
 ##### 
 compiler:
+	make modules
 	g++ -g main.c $(OBJS) $(FLAGS) -o compiler
-
-# $(LIBS)
 
 
 ##### Make library of object files
-library: syntaxanalyzer front-end optimizations irbuilder modules
-
-modules: irbuilder
-	ar cr mini_c_compiler.a $(OBJS)
+modules: syntaxanalyzer front-end optimizations irbuilder
 
 
 ##### Object file dependencies #####
@@ -62,6 +58,5 @@ clean:
 	rm -f *.o y.tab.c y.tab.h y.output lex.yy.c
 	rm -f compiler
 	rm -f test_new.ll test_old.ll
-
-clean-lib:
-	rm -f mini_c_compiler.a
+	rm -f optimizer.o optimizations.o
+	rm -f irbuilder.o

@@ -10,6 +10,6 @@
 #include "../front-end/ast/ast.h"
 using namespace std;
 
-unordered_map<string, LLVMValueRef> renameVariables(astNode* root);
-string createTemporaryVariable(string oldVarName, unordered_map<string, 
+unordered_map<string, LLVMValueRef> renameVariables();
+string addVariable(string oldVarName, unordered_map<string, 
         LLVMValueRef>* varNameMap, unordered_map<string, int>* nameFreqMap);
