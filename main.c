@@ -6,6 +6,12 @@
 */
 
 
+
+
+
+
+
+
 /**************** dependencies ****************/
 #include "front-end/ast/ast.h"
 #include "front-end/y.tab.h"
@@ -24,6 +30,7 @@
 #include <set>
 #include <string.h>
 #include "irbuilder/irbuilder.h"
+#include "assembly-code-gen/assemblycodegen.h"
 extern FILE* yyin;
 extern int yylex_destroy();
 using namespace std;
@@ -34,18 +41,27 @@ using namespace std;
 //ast_Node* root = NULL;
 
 
+void printInstIndex(unordered_map<LLVMValueRef, int>* instIndex);
+void printLiveRange(unordered_map<LLVMValueRef, array<int, 2>>* liveRange);
+
+
 /**************** main ****************/
 int main(int argc, char* argv[]) 
 {
     LLVMModuleRef m;
+    char* filename;
+    char* fileName;
 
     /* Section 1: Front-end */
 
     // Open mini-c file
     if (argc == 3) {
         yyin = fopen(argv[1], "r");
-        char* fileName = argv[2];
-        m = createLLVMModel(fileName);
+
+
+        fileName = argv[1];
+        filename = argv[2];
+        m = createLLVMModel(filename);
 
         if (yyin == NULL || m == NULL) {
             fprintf(stderr, "File open error");
@@ -81,8 +97,10 @@ int main(int argc, char* argv[])
 
     /* Section 2: IR builder */
     //unordered_map<string, LLVMValueRef> varLocs = renameVariables();
-    readAstTree();
-    printNode(root);
+    //readAstTree(fileName);
+    //printNode(root);
+
+    
 
 
     
@@ -99,5 +117,77 @@ int main(int argc, char* argv[])
 	// LLVMDisposeModule(m);
 	// LLVMShutdown();
 
+
+
+
+    /* Section 4: Assembly code generation */
+
+    LLVMModuleRef m2 = createLLVMModel("optimizations/optimizer_test_results/p4_const_prop_opt.ll");
+
+    LLVMValueRef function =  LLVMGetFirstFunction(m2); 
+
+	for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function);
+ 			basicBlock;
+  			basicBlock = LLVMGetNextBasicBlock(basicBlock)) {
+        
+
+
+
+        unordered_map<LLVMValueRef, int>* instIndex = new unordered_map<LLVMValueRef, int>;
+        unordered_map<LLVMValueRef, array<int, 2>>* liveRange = new unordered_map<LLVMValueRef, array<int, 2>>;
+
+        
+        computeLiveness(basicBlock, instIndex, liveRange);
+
+        printInstIndex(instIndex);
+
+        printLiveRange(liveRange);
+
+        
+
+    }
+
+    
+
+
+
+
+
     return 0;
+}
+
+
+
+
+
+void printInstIndex(unordered_map<LLVMValueRef, int>* instIndex) {
+
+    for (auto iter = instIndex->begin(); iter != instIndex->end(); ++iter) {
+
+        LLVMValueRef inst = iter->first;
+        
+
+        int begIndex = iter->second;
+        printf("Inst: %s    beg index: %d\n", LLVMPrintValueToString(inst), begIndex);
+        fflush(stdout);
+    }
+
+    printf("\n\n");
+}
+
+
+
+void printLiveRange(unordered_map<LLVMValueRef, array<int, 2>>* liveRange) {
+
+    for (auto iter = liveRange->begin(); iter != liveRange->end(); ++iter) {
+
+        LLVMValueRef inst = iter->first;
+
+        printf("Inst: %s    beg index: %d   end index: %d\n", LLVMPrintValueToString(inst), iter->second[0], iter->second[1]);
+        fflush(stdout);
+
+        
+    }
+    printf("\n\n");
+
 }

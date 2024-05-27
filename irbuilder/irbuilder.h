@@ -18,8 +18,12 @@ unordered_map<string, LLVMValueRef> renameVariables(unordered_map<string, LLVMVa
         stack<unordered_map<string, LLVMValueRef>> varNameStack);
 unordered_map<string, LLVMValueRef> createUniqueVariable(string oldVarName, unordered_map<string, 
         LLVMValueRef> varNameMap, unordered_map<string, int>* nameFreqMap);
-void readAstTree();
+void readAstTree(char* filename);
 unordered_map<string, LLVMValueRef> replaceWithUnique(astNode* node, unordered_map<string, int>* nameFreqMap, unordered_map<string, 
         LLVMValueRef> varNameMap);
 char* replaceWithUniqueHelper(string oldVarName, unordered_map<string, int>* nameFreqMap, unordered_map<string, 
         LLVMValueRef> varNameMap);
+
+
+
+LLVMModuleRef buildIR(unordered_map<string, int>* nameFreqMap, char* filename);

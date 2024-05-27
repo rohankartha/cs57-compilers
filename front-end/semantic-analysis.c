@@ -51,7 +51,6 @@ bool analyzeNode(stack<vector<char*>> *stStack, ast_Node* node)
     switch(node->type) {
         
         case ast_prog:
-            printf("prog\n");
             result = analyzeNode(stStack, root->prog.func);
             if (!result) { return false; }
             break;
@@ -87,7 +86,6 @@ bool analyzeNode(stack<vector<char*>> *stStack, ast_Node* node)
 /***************** analyzeFuncNode ***********************/
 bool analyzeFuncNode(stack<vector<char*>> *stStack, astFunc func) 
 {
-    printf("func\n");
 
     // Creating new symbol table and pushing it onto stack
     vector<char*> curr_sym_table;

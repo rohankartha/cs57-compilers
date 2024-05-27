@@ -9,7 +9,8 @@ LIBS = mini_c_compiler.a
 FE = front-end
 IRB = irbuilder
 OPT = optimizations
-OBJS = semantic-analysis.o ast.o lex.yy.o y.tab.o optimizer.o optimizations.o irbuilder.o
+CODEGEN = assembly-code-gen
+OBJS = semantic-analysis.o ast.o lex.yy.o y.tab.o optimizer.o optimizations.o irbuilder.o assemblycodegen.o
 
 .PHONY: all library compiler syntaxanalyzer clean
 
@@ -25,7 +26,7 @@ compiler:
 
 
 ##### Make library of object files
-modules: syntaxanalyzer front-end optimizations irbuilder
+modules: syntaxanalyzer front-end optimizations irbuilder codegenerator
 
 
 ##### Object file dependencies #####
@@ -35,9 +36,13 @@ y.tab.o: $(FE)/y.tab.h
 optimizer.o: $(OPT)/optimizer.h 
 optimizations.o: $(OPT)/optimizations.h
 irbuilder.o: $(IRB)/irbuilder.h 
+assemblycodegen.o: $(CODEGEN)/assemblycodegen.h
 
 
 ##### Make object files #####
+codegenerator: front-end syntaxanalyzer optimizations irbuilder
+	g++ -g -I /usr/include/llvm-c-15 -c $(CODEGEN)/assemblycodegen.c
+
 irbuilder: front-end syntaxanalyzer optimizations 
 	g++ -g -I /usr/include/llvm-c-15 -c $(IRB)/irbuilder.c
 
@@ -60,3 +65,4 @@ clean:
 	rm -f test_new.ll test_old.ll
 	rm -f optimizer.o optimizations.o
 	rm -f irbuilder.o
+	rm -f assemblycodegen.o
