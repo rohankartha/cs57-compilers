@@ -117,6 +117,10 @@ void readAstTree(char* filename)
     extractStatementList(block, varNameStack, nameFreqMap, varNameMap);
 
     LLVMModuleRef module = buildIR(nameFreqMap, filename);
+
+    // Testing
+    printf("%s\n", LLVMPrintModuleToString(module));
+
     
 }
 
@@ -665,9 +669,9 @@ LLVMModuleRef buildIR(unordered_map<string, int>* nameFreqMap, char* filename)
 
 
         // TESTING
-        printf("newentry: %s\n", LLVMPrintValueToString(LLVMBasicBlockAsValue(entryBB)));
-        printf("%s\n", LLVMPrintModuleToString(module));
-        fflush(stdout);
+        // printf("newentry: %s\n", LLVMPrintValueToString(LLVMBasicBlockAsValue(entryBB)));
+        // printf("%s\n", LLVMPrintModuleToString(module));
+        // fflush(stdout);
     }
     
 
@@ -711,9 +715,9 @@ Generate an unconditional branch to retBB.
 Remove all basic blocks that do not have any predecessor basic blocks (think breadth-first search (BFS) !!!)
 Time for memory cleanup (delete memory from maps, sets, builder)!*/
 
-    char* moduleTest = LLVMPrintModuleToString(module);
-    printf("%s", moduleTest);
-    fflush(stdout);
+    // char* moduleTest = LLVMPrintModuleToString(module);
+    // printf("%s", moduleTest);
+    // fflush(stdout);
 
     return module;
 
@@ -777,72 +781,17 @@ return startBB (startBB is also the endBB in case of an assignment statement) (?
 
         case ast_asgn: {
 
-            // Testing
-            // printf("Entered assgn\n");
-            // fflush(stdout);
-
-            // printf("basic block state3.1: %s", LLVMPrintValueToString(LLVMBasicBlockAsValue(startBB)));
-            // fflush(stdout);
-
-
-
-
-
             // Positioning builder at end of start basic block
             LLVMPositionBuilderAtEnd(builder, startBB);
 
             // Generating LLVMValueRef of RHS of assignment statement
             astNode* rhsNode = stmt.asgn.rhs;
-
-
-            // printf("basic block state3: %s", LLVMPrintValueToString(LLVMBasicBlockAsValue(startBB)));
-            // fflush(stdout);
-
-
-
-
             LLVMValueRef rhs = generateIRExpression(rhsNode, builder, var_map, readValRef, startBB);
-
-
-
-
-
-            // printf("ASDF: %s\n", LLVMPrintValueToString(rhs));
-            // fflush(stdout);
-
-
-
-
-
 
             // Retrieving variable name from LHS of assignment statement
             astNode* lhsNode = stmt.asgn.lhs;
             string lhsName(lhsNode->var.name);
             LLVMValueRef newStoreInstRef = LLVMBuildStore(builder, rhs, var_map.at(lhsName));
-
-
-
-            // Testing
-            // printf("ASDF2: %s\n", LLVMPrintValueToString(newStoreInstRef));
-            // fflush(stdout);
-
-
-
-
-
-            // Inserting new instruction into basic block
-            //LLVMInsertIntoBuilder(builder, newStoreInstRef);
-
-
-
-
-            // Testing
-            printf("%s\n", LLVMPrintValueToString(LLVMBasicBlockAsValue(startBB)));
-            fflush(stdout);
-
-
-
-
 
             return startBB;
         }
@@ -885,59 +834,20 @@ return startBB (startBB is also the endBB in case of an assignment statement)
 
 
 
-        /*If the statement is a while statement:
-Set the position of the builder to the end of startBB.
-Generate a basic block to check the condition of the while loop. Let this be condBB.
-Generate an unconditional branch at the end of startBB to condBB.
-Set the position of the builder to the end of condBB.
-Generate LLVMValueRef of the relational expression (comparison) in the condition of the while loop by calling the genIRExpr subroutine given below.
-Generate two basic blocks, trueBB and falseBB, that will be the successor basic blocks when condition is true or false respectively.
-Generate a conditional branch at the end of condBB using the LLVMValueRef of comparison in step E above and setting the successor as trueBB when the condition is true and the successor as falseBB when the condition is false.
 
 
 
+        /* Case 3: While statement*/
 
-
-
-Generate the LLVM IR for the while loop body by calling the genIRStmt subroutine recursively: pass trueBB as a parameter to genIRStmt and let the trueExitBB be the return value of genIRStmt call.
-Set the position of the builder to the end of trueExitBB.
-Generate an unconditional branch to condBB at the end of trueExitBB.
-Return falseBB as the endBB for a while statement.
-
-*/
         case ast_while: {
 
             // Setting position of builder to the end of startBB
             LLVMPositionBuilderAtEnd(builder, startBB);
 
             // Generating basic block for condition of while loop
-            
             char* newName = (char*) malloc(strlen(generateNewBBName(startBB) + 1));
             newName = strcpy(newName, generateNewBBName(startBB));
-            
-            
-            //generateNewBBName(startBB);
             LLVMBasicBlockRef condBB = LLVMAppendBasicBlock(mainFuncRef, newName);
-
-            
-
-
-            // Testing
-            printf("bbname: %s\n", generateNewBBName(startBB));
-            fflush(stdout);
-
-
-
-
-
-
-
-
-
-
-
-
-
 
             // Linking startBB to condBB w/ unconditional branch
             LLVMValueRef newUncondBrRef = LLVMBuildBr(builder, condBB);
@@ -950,54 +860,24 @@ Return falseBB as the endBB for a while statement.
             astNode* whileCondNode = whileStatement.cond;
             LLVMValueRef newRelExprRef = generateIRExpression(whileCondNode, builder, var_map, readValRef, startBB);
 
-            // Generating true and false basic blocks
+            // Generating true basic block
             char* newNameTrue = (char*) malloc(strlen(generateNewBBName(condBB) + 1));
             newNameTrue = strcpy(newNameTrue, generateNewBBName(condBB));
             LLVMBasicBlockRef trueBB = LLVMAppendBasicBlock(mainFuncRef, newNameTrue);
 
+            // Generating false basic block
             char* newNameFalse = (char*) malloc(strlen(generateNewBBName(trueBB) + 1));
             newNameFalse = strcpy(newNameFalse, generateNewBBName(trueBB));
             LLVMBasicBlockRef falseBB = LLVMAppendBasicBlock(mainFuncRef, newNameFalse);
 
-
+            // Generating conditional branch instruction to determine successor
             LLVMBuildCondBr(builder, newRelExprRef, trueBB, falseBB);
 
             // Retrieve while loop body node
             astNode* whileBody = whileStatement.body;
 
-
-
-            // Testing
-            // printf("test1: %s\n", LLVMPrintValueToString(LLVMBasicBlockAsValue(startBB)));
-            // fflush(stdout);
-            // printf("test2: %s\n", LLVMPrintValueToString(LLVMBasicBlockAsValue(condBB)));
-            // fflush(stdout);
-            // printf("test3: %s\n", LLVMPrintValueToString(LLVMBasicBlockAsValue(trueBB)));
-            // fflush(stdout);
-
-
-
-
-
-
-
-
-
-
-// WORK POINT
-
+            // Generating LLVM IR for while body
             LLVMBasicBlockRef trueExitBB = generateIRStatement(whileBody, builder, trueBB, var_map, readValRef, mainFuncRef);
-
-
-
-            //Testing
-            // printf("ASDFASDFASDF\n");
-            // fflush(stdout);
-
-
-
-
-
 
             // Setting position of builder to end of trueExitBB
             LLVMPositionBuilderAtEnd(builder, trueExitBB);
@@ -1005,23 +885,11 @@ Return falseBB as the endBB for a while statement.
             // Generating unconditional branch linking trueExitBB to condBB
             LLVMBuildBr(builder, condBB);
 
-
-            printf("%s\n", LLVMPrintValueToString(LLVMBasicBlockAsValue(trueExitBB)));
-            fflush(stdout);
-
             return falseBB;
-
-
-
-
-
-
-
-
-
-
-
         }
+
+
+
 
 
 
@@ -1041,16 +909,29 @@ Generate a conditional branch at the end of startBB using the LLVMValueRef of co
         // Setting position of builder to end of startBB
         LLVMPositionBuilderAtEnd(builder, startBB);
 
-        // Extract if condition node from while statement node
+        // Extract if condition node from if statement node
         astIf ifStatement = statementNode->stmt.ifn;
         astNode* ifCondNode = ifStatement.cond;
         LLVMValueRef newRelExprRef = generateIRExpression(ifCondNode, builder, var_map, readValRef, startBB);
 
-        // Generating true and false basic blocks
-        LLVMBasicBlockRef trueBB = LLVMAppendBasicBlock(mainFuncRef, "");
-        LLVMBasicBlockRef falseBB = LLVMAppendBasicBlock(mainFuncRef, "");
+        // Generating true basic block
+        char* newNameTrue = (char*) malloc(strlen(generateNewBBName(startBB) + 1));
+        newNameTrue = strcpy(newNameTrue, generateNewBBName(startBB));
+        LLVMBasicBlockRef trueBB = LLVMAppendBasicBlock(mainFuncRef, newNameTrue);
 
-        
+        // Generating false basic block
+        char* newNameFalse = (char*) malloc(strlen(generateNewBBName(trueBB) + 1));
+        newNameFalse = strcpy(newNameFalse, generateNewBBName(trueBB));
+        LLVMBasicBlockRef falseBB = LLVMAppendBasicBlock(mainFuncRef, newNameFalse);
+
+        // Generating conditional branch instruction to determine successor
+        LLVMBuildCondBr(builder, newRelExprRef, trueBB, falseBB);
+
+
+
+
+
+
 
 
     /*
@@ -1067,7 +948,7 @@ Return falseBB as the endBB.
         // Retrieving else node from the if statement node
         astNode* elseNode = ifStatement.else_body; 
 
-        
+        // If there is no else statement
         if (elseNode == NULL) {
             astNode* ifNode = ifStatement.if_body;
             LLVMBasicBlockRef ifExitBB = generateIRStatement(ifNode, builder, trueBB, var_map, readValRef, mainFuncRef);
@@ -1081,12 +962,24 @@ Return falseBB as the endBB.
             return falseBB;
         }
 
+        // Error with BB3 branch to return
+
+
+
+
+
+
+
+
+
+
+
 
 
 
         /*
 
-
+// a = read() for p5.c
 
 
 If there is an else part to the if statement:
@@ -1108,7 +1001,10 @@ return endBB.
             LLVMBasicBlockRef ifExitBB = generateIRStatement(ifNode, builder, trueBB, var_map, readValRef, mainFuncRef);
             LLVMBasicBlockRef elseExitBB = generateIRStatement(elseNode, builder, falseBB, var_map, readValRef, mainFuncRef);
 
-            LLVMBasicBlockRef endBB = LLVMAppendBasicBlock(mainFuncRef, "");
+            // Generating endBB for if-else statement
+            char* newNameEndBB = (char*) malloc(strlen(generateNewBBName(falseBB) + 1));
+            newNameEndBB = strcpy(newNameEndBB, generateNewBBName(falseBB));
+            LLVMBasicBlockRef endBB = LLVMAppendBasicBlock(mainFuncRef, newNameEndBB);
 
             // Linking trueBB and falseBB to common basic block
             LLVMPositionBuilderAtEnd(builder, ifExitBB);
@@ -1117,10 +1013,29 @@ return endBB.
             LLVMBuildBr(builder, endBB);
 
             return endBB;
-
         }
     }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
     /*
 
 If the statement is a return statement: 
@@ -1135,12 +1050,6 @@ Generate a new endBB basic block and return it
 
 // STARTING HERE
         case ast_ret: {
-
-            printf("test: %s\n", LLVMPrintValueToString(LLVMBasicBlockAsValue(startBB)));
-            fflush(stdout);
-
-            
-
 
             // Setting the position of the builder to the end of startBB.
             LLVMPositionBuilderAtEnd(builder, startBB);
@@ -1160,9 +1069,6 @@ Generate a new endBB basic block and return it
             char* newBlockName = (char*) malloc(strlen(generateNewBBName(startBB) + 1));
             newBlockName = strcpy(newBlockName, generateNewBBName(startBB));
             LLVMBasicBlockRef endBB = LLVMAppendBasicBlock(mainFuncRef, newBlockName);
-
-            printf("test2\n");
-            fflush(stdout);
 
             return endBB;
         }
@@ -1195,9 +1101,6 @@ return the value returned by the call to genIRStmt on the last statement in the 
 
                 astNode* statementNode = *statIter;
                 astStmt statement = statementNode->stmt;
-
-                // printf("basic block state5: %s", LLVMPrintValueToString(LLVMBasicBlockAsValue(prevBB)));
-                // fflush(stdout);
 
                 prevBB = generateIRStatement(statementNode, builder, prevBB, var_map, readValRef, mainFuncRef);
             }

@@ -21,8 +21,12 @@ using namespace std;
 
 
 void computeLiveness(LLVMBasicBlockRef bb, unordered_map<LLVMValueRef, int>* instIndex, unordered_map<LLVMValueRef, array<int, 2>>* liveRange);
+unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function);
 
-
+void printInstIndex(unordered_map<LLVMValueRef, int>* instIndex);
+void printLiveRange(unordered_map<LLVMValueRef, array<int, 2>>* liveRange);
+void printRegisterAssignments(unordered_map<LLVMValueRef, string> registerAssignments);
+vector<string> sortInstructions(unordered_map<LLVMValueRef, array<int, 2>> liveRange);
 
 
 
@@ -48,15 +52,9 @@ void computeLiveness(LLVMBasicBlockRef bb, unordered_map<LLVMValueRef, int>* ins
 
     // Iterating through instructions in basic block
     for (LLVMValueRef inst = LLVMGetFirstInstruction(bb); inst != NULL; inst = LLVMGetNextInstruction(inst)) {
+        
+        // Incrementing instruction index counter
         index++;
-
-
-
-
-
-
-
-
 
         // Creating map containing instruction references and index of first appearances
         if (LLVMGetInstructionOpcode(inst) != LLVMAlloca &&
@@ -71,307 +69,518 @@ void computeLiveness(LLVMBasicBlockRef bb, unordered_map<LLVMValueRef, int>* ins
             array<int, 2> range;
             range[0] = index;
 
-
-
-
-            //liveRange->insert({inst, newRangeVec});
-
-
-
-
-
-
-
-
-
+            // Calculating upper bound of liveness range for temporary variable
             bool use = false;
             int endIndex = index;
             int indexCopy = index;
 
             LLVMValueRef nextInst = LLVMGetNextInstruction(inst);
 
+            // Iterating through rest of basic block to check liveness
             for (LLVMValueRef checkInst = nextInst; 
                     checkInst != NULL; checkInst = LLVMGetNextInstruction(checkInst)) {
 
                 indexCopy++;
                 int numOperands = LLVMGetNumOperands(nextInst);
 
-
                 for (int i = 0; i < numOperands; i++) {
                     LLVMValueRef operand = LLVMGetOperand(checkInst, i);
 
-
+                    // If temp variable is used, mark boolean as true and save index value
                     if (inst == operand) {
                         use = true;
                         endIndex = indexCopy;
                     }
                 }
+            }
+
+            // Updating liveness map with range for temp variable
+            range[1] = endIndex;
+            liveRange->insert({inst, range});
+        }
+    }
+}
 
 
 
-            // int indexCopy = index;
-            // LLVMValueRef nextInst = inst;
-            // int endIndex = 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/***************** allocateRegisters ***********************/
+unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function) 
+{
+
+    unordered_map<LLVMValueRef, string> registerAssignments;
+
+    for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); 
+            bb != NULL; bb = LLVMGetNextBasicBlock(bb)) {
+
+        // Initializing set of available registers
+        set<string> availableRegisters;
+
+        // Adding %ebx, %edx, and %ecx to set
+        availableRegisters.insert(string("%ebx"));
+        availableRegisters.insert(string("%edx"));
+        availableRegisters.insert(string("%ecx"));
+
+        // Calculating index map and range map
+        unordered_map<LLVMValueRef, int>* instIndex = new unordered_map<LLVMValueRef, int>;
+        unordered_map<LLVMValueRef, array<int, 2>>* liveRange = new unordered_map<LLVMValueRef, array<int, 2>>;
+        computeLiveness(bb, instIndex, liveRange);
+
+
+
+
+
+        // TESTING
+        printInstIndex(instIndex);
+        printLiveRange(liveRange);
+
+
+
+
+
+
+
+        int instructionNum = 0;
+
+        // Iterating through instructions in basic block
+        for (LLVMValueRef instruction = LLVMGetFirstInstruction(bb);    
+                instruction != NULL; instruction = LLVMGetNextInstruction(instruction)) {
             
+            LLVMOpcode instructionType = LLVMGetInstructionOpcode(instruction);
+            instructionNum++;
 
 
-            // while ((nextInst = LLVMGetNextInstruction(nextInst)) != NULL) {
+            // If instruction is an allocate instruction, skip
+            if (instructionType == LLVMAlloca) {
+                continue;
+            }
 
-            //     indexCopy++;
+            
+            // If instruction doesn't have a result
 
-            //     // for loop num of operands in instruction
-            //     int numOperands = LLVMGetNumOperands(nextInst);
-            //     for (int i = 0; i < numOperands; i++) {
-            //         LLVMValueRef operand = LLVMGetOperand(inst, i);
+            // FIX CALL THAT DOESNT RETURN VALUE
+            else if ((instructionType == LLVMAlloca ||
+                    instructionType == LLVMStore ||
+                    instructionType == LLVMBr ||
+                    instructionType == LLVMRet ||
+                    instructionType == LLVMCall)) {
 
-            //         // If operand is same as instruction, updating end index
-            //         if (inst = operand) {
-            //             use = true;
-            //             endIndex = indexCopy;
-            //         }
-            //     }    
-            // }
 
-            // auto instEntry = liveRange->find(inst);
-            // vector<int> indices = instEntry->second;
-            // indices.push_back(endIndex);
-            // instEntry->second = indices;
+                //printf("instructionone: %s\n", LLVMPrintValueToString(instruction));
+                fflush(stdout);
+
+
+
+
+
+
+                // If any of the operands' liveness range ends at this instruction
+                int numOperands = LLVMGetNumOperands(instruction);
+                for (int i = 0; i < numOperands; i++) {
+
+
+                    auto liveRangeIter = liveRange->find(instruction);
+
+                    if (liveRangeIter != liveRange->end()) {
+
+                        array<int, 2> operandLiveRange = liveRange->at(instruction); 
+                        int endIndex = operandLiveRange[1];
+
+                        // ???
+
+                        if (endIndex == instructionNum) {
+
+                            // If the instruction already assigned a register, add it to set of available registers
+                            auto regIter = registerAssignments.find(instruction);
+
+                            if (regIter != registerAssignments.end()) {
+                                string assignedRegName = registerAssignments.at(instruction);
+                                availableRegisters.insert(assignedRegName);
+                            }
+                            
+                            // Adding register to availableRegisters set
+                            LLVMValueRef operand = LLVMGetOperand(instruction, i);
+
+                            string registerName = registerAssignments.at(operand);
+                            availableRegisters.insert(registerName);
+
+                        }
+                    }
+                }
+            }
+
+
+
+
+
+            else {
+
+                ///printf("instructiontwo: %s\n", LLVMPrintValueToString(instruction));
+                fflush(stdout);
+
+                /* Case 1: Instruction is of type add/sub/mul, its first operand 
+                has register assigned, and first operand liveness range ends at instruction */
+
+                if (instructionType == LLVMAdd || instructionType == LLVMSub || instructionType == LLVMMul) {
+
+                    // NEED TO UPDATE AVAILABLE REGS MORE?
+
+                    // Retrieving first operand
+                    LLVMValueRef firstOperand = LLVMGetOperand(instruction, 0);
+
+                    // Retrieving upper bound of temporary variable liveness range
+
+                    auto findOpIter = liveRange->find(firstOperand);
+
+                    if (findOpIter != liveRange->end()) {
+
+
+                    
+
+
+
+
+                        int endIndex = liveRange->at(firstOperand)[1];
+
+                        // Checking if first operand has assigned register
+                        auto checkOper = registerAssignments.find(firstOperand);
+
+                        /* If first operand has assigned register and its liveness range 
+                        ends at parent instruction, assigning this register to parent instruction */
+                        if (checkOper != registerAssignments.end() && endIndex == instructionNum) {
+
+                            string registerName = registerAssignments.at(firstOperand);
+                            registerAssignments.insert({instruction, registerName});
+
+
+                            // Retrieving second operand
+                            LLVMValueRef secondOperand = LLVMGetOperand(instruction, 1);
+
+                            // Retrieving upper bound of temporary variable liveness range
+                            int endIndexTwo = liveRange->at(secondOperand)[1];
+
+                            // If liveness of operand ends at parent instruction, mark its register as available
+                            if (endIndexTwo == instructionNum) {
+
+                                auto secondOpIter = registerAssignments.find(secondOperand);
+                                if (secondOpIter != registerAssignments.end()) {
+
+                                    string regName = registerAssignments.at(secondOperand);
+                                    availableRegisters.insert(regName);
+                                }
+                            }
+                        }    
+                    }
+                }
+
+
+                /* Case 2: Otherwise, if a physical register is available */
+
+                else if (!availableRegisters.empty()) {
+
+                    // Retrieving available register name
+                    string availableRegName = *availableRegisters.begin();
+
+                    // Removing register name from available registers and adding it to assignment map
+                    registerAssignments.insert({instruction, availableRegName});
+                    availableRegisters.erase(availableRegName);
+
+
+
+
+                    // Marking any registers used by operands at the end of their live ranges as available
+                    for (int i = 0; i < LLVMGetNumOperands(instruction); i++) {
+
+                        // Extracting operand and upper bound of its liveness range
+                        LLVMValueRef operand = LLVMGetOperand(instruction, i);
+
+                        auto findOperIndex = liveRange->find(operand);
+                        if (findOperIndex != liveRange->end()) {
+
+                            int operandEndIndex = (liveRange->at(operand))[1];
+
+                            if (operandEndIndex == instructionNum) {
+
+                                auto opIter = registerAssignments.find(operand);
+
+                                if (opIter != registerAssignments.end()) {
+                                    string newlyAvailableReg = registerAssignments.at(operand);
+                                    availableRegisters.insert(newlyAvailableReg);
+                                }
+                            }
+                        }
+
+
+
+                        
+
+                        
+                    }
+                }
+
+
+
+
+
+
+
+
+
+
+
+
+                // START HERE
+                // Make else if??
+
+                /* Case 3: Otherwise, if a physical register is not available */
+
+                // else {
+                //     LLVMValueRef V = findSpill(registerAssignments, liveRange, sortedList, instruction);
+
+                //     int v_LivenessRange = liveRange.at(V).at(1);
+                //     int inst_LivenessRange = liveRange.at(instruction).at(1);
+
+                //     if (inst_LivenessRange > v_LivenessRange) {
+                //         registerAssignments.insert({instruction, "-1"});
+                //     }
+
+                //     else {
+                //         string registerName = registerAssignments.at(V);
+                //         registerAssignments.insert({instruction, registerName});
+
+                //         // Does this update???
+                //         registerAssignments.insert({V, "-1"});
+                //     }
+
+                //     // Marking any registers used by operands at the end of their live ranges as available
+                //     for (int i = 0; i < LLVMGetNumOperands(instruction); i++) {
+
+                //         LLVMValueRef operand = LLVMGetOperand(instruction, i);
+                //         int operandEndIndex = liveRange.at(operand).at(1);
+
+                //         if (operandEndIndex == instructionNum) {
+                //             string newlyAvailableReg = registerAssignments.at(operand);
+                //             availableRegisters.insert(newlyAvailableReg);
+                //         }
+                //     }
+                // }
+            }
+
+
+
+
+
+            // If instruction does have a result
+
         }
 
-        // auto instEntry = liveRange->find(inst);
-        // instEntry->second.push_back(endIndex);
-        range[1] = endIndex;
+        vector<string> sortedList = sortInstructions(*liveRange);
 
-        liveRange->insert({inst, range});
+        for (auto iter = sortedList.begin(); iter != sortedList.end(); ++iter) {
+
+            printf("sortedInst: %s\n", (*iter).c_str());
+        }
+        fflush(stdout);
+
+
 
 
 
     }
-}
-}
 
+    printRegisterAssignments(registerAssignments);
 
+    
+    fflush(stdout);
 
 
 
 
-// /***************** allocateRegisters ***********************/
-// unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function) 
-// {
 
-//     unordered_map<LLVMValueRef, string> registerAssignments;
+} 
 
-//     for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); 
-//             bb != NULL; bb = LLVMGetNextBasicBlock(bb)) {
 
-//         // Initializing set of available registers
-//         set<string> availableRegisters;
 
-//         // Adding %ebx, %edx, and %ecx to set
-//         availableRegisters.insert(string("ebx"));
-//         availableRegisters.insert(string("edx"));
-//         availableRegisters.insert(string("ecx"));
 
-//         // Calculating index map and range map
-//         unordered_map<LLVMValueRef, int> instIndex;
-//         unordered_map<LLVMValueRef, vector<int>> liveRange;
-//         computeLiveness(bb, instIndex, liveRange);
 
-//         int instructionNum = 0;
 
-//         // Iterating through instructions in basic block
-//         for (LLVMValueRef instruction = LLVMGetFirstInstruction(bb);    
-//                 instruction != NULL; instruction = LLVMGetNextInstruction(instruction)) {
-            
-//             LLVMOpcode instructionType = LLVMGetInstructionOpcode(instruction);
-//             instructionNum++;
 
-//             // If instruction is an allocate instruction, skip
-//             if (LLVMGetInstructionOpcode(instruction) == LLVMAlloca) {
-//                 continue;
-//             }
 
-            
-//             // If instruction doesn't have a result
-//             else if () {
 
-//                 // If any of the operands' liveness range ends at this instruction
-//                 int numOperands = LLVMGetNumOperands(instruction);
-//                 for (int i = 0; i < numOperands; i++) {
 
-//                     vector<int> operandLiveRange = liveRange.at(instruction); 
-//                     int endIndex = operandLiveRange.at(1);
 
-//                     if (endIndex == instructionNum) {
 
-//                         // Adding register to availableRegisters set
-//                         LLVMValueRef operand = LLVMGetOperand(instruction, i);
 
-//                         string registerName = registerAssignments.at(operand);
-//                         availableRegisters.insert(registerName);
 
-//                     }
-//                 }
 
-//             }
 
-//             else {
 
-//                 if (instructionType == LLVMAdd || instructionType == LLVMSub || instructionType == LLVMMul) {
 
-//                     if (registerAssignments.find(instruction) != registerAssignments.end()) {
 
-//                         string registerName = registerAssignments.find(instruction)->second;
 
-//                         vector<int> operandRange = liveRange.at(LLVMGetOperand(instruction, 0));
 
-//                         if (operandRange.at(1) == instructionNum) {
-//                             registerAssignments.insert({instruction, registerName});
 
-//                             LLVMValueRef operandTwo = LLVMGetOperand(instruction, 1);
-//                             vector<int> operandTwoRange = liveRange.at(operandTwo);
 
-//                             int operandTwoEndIndex = operandTwoRange.at(1);
 
-//                             if (operandTwoEndIndex == instructionNum) {
-                                
-//                                 if (registerAssignments.find(operandTwo) == registerAssignments.end()) {
-//                                     string registerName = registerAssignments.at(operandTwo);
+/***************** findSpill ***********************/
+LLVMValueRef findSpill(unordered_map<LLVMValueRef, string> registerAssignments, 
+        unordered_map<LLVMValueRef, array<int, 2>> liveRange, vector<LLVMValueRef> sortedList,
+        LLVMValueRef instruction)
+{
 
-//                                     availableRegisters.insert(registerName);
-//                                 }
-//                             }
+    auto instIter = find(sortedList.begin(), sortedList.end(), instruction);
+    int instIndex = distance(sortedList.begin(), instIter);
 
 
-//                         }
+    for (int i = 0; sortedList.size(); i++) {
+        LLVMValueRef instructionTwo = sortedList.at(i);
 
-                        
+        int firstInstEnd;
+        int secondInstBeg;
 
-//                     }
-//                 }
+        // Determining relative order of two instructions
+        if (i > instIndex) {
+            firstInstEnd = liveRange.at(instructionTwo).at(1);
+            secondInstBeg = liveRange.at(instruction).at(0);
+        }
+        else {
+            firstInstEnd = liveRange.at(instruction).at(1);
+            secondInstBeg = liveRange.at(instructionTwo).at(0);
+        }
 
-//                 // If a physical register is available
-//                 else if (!availableRegisters.empty()) {
+        // If the liveness ranges overlap
+        if (secondInstBeg >= firstInstEnd) {
+            if (registerAssignments.find(instructionTwo) != registerAssignments.end()) {
+                string registerName = registerAssignments.at(instructionTwo);
 
-//                     // Retrieving available register name
-//                     string availableRegName = *availableRegisters.begin();
+                if (registerName == "-1") {
+                    return instructionTwo;
+                }
+            }
 
-//                     // Removing register name from available registers and adding it to assignment map
-//                     registerAssignments.insert({instruction, availableRegName});
-//                     availableRegisters.erase(availableRegName);
-
-//                     // Marking any registers used by operands at the end of their live ranges as available
-//                     for (int i = 0; i < LLVMGetNumOperands(instruction); i++) {
-
-//                         LLVMValueRef operand = LLVMGetOperand(instruction, i);
-//                         int operandEndIndex = liveRange.at(operand).at(1);
-
-//                         if (operandEndIndex == instructionNum) {
-//                             string newlyAvailableReg = registerAssignments.at(operand);
-//                             availableRegisters.insert(newlyAvailableReg);
-//                         }
-//                     }
-//                 }
-
-//                 // If a physical register is not available
-//                 else {
-//                     LLVMValueRef V = findSpill(registerAssignments, liveRange, sortedList, instruction);
-
-//                     int v_LivenessRange = liveRange.at(V).at(1);
-//                     int inst_LivenessRange = liveRange.at(instruction).at(1);
-
-//                     if (inst_LivenessRange > v_LivenessRange) {
-//                         registerAssignments.insert({instruction, "-1"});
-//                     }
-
-//                     else {
-//                         string registerName = registerAssignments.at(V);
-//                         registerAssignments.insert({instruction, registerName});
-
-//                         // Does this update???
-//                         registerAssignments.insert({V, "-1"});
-//                     }
-
-//                     // Marking any registers used by operands at the end of their live ranges as available
-//                     for (int i = 0; i < LLVMGetNumOperands(instruction); i++) {
-
-//                         LLVMValueRef operand = LLVMGetOperand(instruction, i);
-//                         int operandEndIndex = liveRange.at(operand).at(1);
-
-//                         if (operandEndIndex == instructionNum) {
-//                             string newlyAvailableReg = registerAssignments.at(operand);
-//                             availableRegisters.insert(newlyAvailableReg);
-//                         }
-//                     }
-//                 }
-//             }
-
-
-
-
-
-//             // If instruction does have a result
-
-//         }
-
-
-
-
-//     }
-
-
-
-
-
-// } 
-
-
-// /***************** findSpill ***********************/
-// LLVMValueRef findSpill(unordered_map<LLVMValueRef, string> registerAssignments, 
-//         unordered_map<LLVMValueRef, vector<int>> liveRange, vector<LLVMValueRef> sortedList,
-//         LLVMValueRef instruction)
-// {
-
-//     auto instIter = find(sortedList.begin(), sortedList.end(), instruction);
-//     int instIndex = distance(sortedList.begin(), instIter);
-
-
-//     for (int i = 0; sortedList.size(); i++) {
-//         LLVMValueRef instructionTwo = sortedList.at(i);
-
-//         int firstInstEnd;
-//         int secondInstBeg;
-
-//         // Determining relative order of two instructions
-//         if (i > instIndex) {
-//             firstInstEnd = liveRange.at(instructionTwo).at(1);
-//             secondInstBeg = liveRange.at(instruction).at(0);
-//         }
-//         else {
-//             firstInstEnd = liveRange.at(instruction).at(1);
-//             secondInstBeg = liveRange.at(instructionTwo).at(0);
-//         }
-
-//         // If the liveness ranges overlap
-//         if (secondInstBeg >= firstInstEnd) {
-//             if (registerAssignments.find(instructionTwo) != registerAssignments.end()) {
-//                 string registerName = registerAssignments.at(instructionTwo);
-
-//                 if (registerName == "-1") {
-//                     return instructionTwo;
-//                 }
-//             }
-
-//         }
+        }
         
         
 
 
 
-//         // a_end >= b_beginninf
-//     }
-//     return NULL;
-// }
+        // a_end >= b_beginninf
+    }
+    return NULL;
+}
+
+
+
+
+
+
+
+
+/***************** sortInstructions ***********************/
+vector<string> sortInstructions(unordered_map<LLVMValueRef, array<int, 2>> liveRange)
+{
+
+    // Initializing vector to hold sorted instructions and string to instruction conversion map
+    vector<string> unsortedInstructions;
+    unordered_map<string, LLVMValueRef> stringToVal;
+
+    // Initializing unsorted vector
+    for (auto instIter = liveRange.begin(); instIter != NULL; ++instIter) {
+
+        // Retrieving instruction
+        LLVMValueRef instruction = instIter->first;
+
+        // Adding instruction to vector and map
+        string copy = LLVMPrintValueToString(instruction);
+        stringToVal.insert({copy, instruction});
+        unsortedInstructions.push_back(copy);
+    }
+
+    // Initializing vector to hold sorted instructions
+    vector<string> sortedInstructions;
+
+    // Iterating through all unsorted instructions
+    for (auto vecIter = unsortedInstructions.begin(); vecIter != unsortedInstructions.end(); ++vecIter) {
+
+        int i = 0;
+        bool added = false;
+
+        if (stringToVal.find(*vecIter) != stringToVal.end()) {
+
+            // Extracting upper bound of liveness range
+            LLVMValueRef unsortedValRef = stringToVal.at(*vecIter);
+            int endIndex = liveRange.at(unsortedValRef)[1];
+
+            // If sorted instructions vector is empty, adding the instruction
+            if (sortedInstructions.empty()) {
+                sortedInstructions.push_back(*vecIter);
+                continue;
+            }
+
+            // Otherwise, iterating through sorted vector to find the correct index for insertion
+            else {
+                while (!added & i < sortedInstructions.size()) {
+
+                    // Extracting LLVMValRef from sorted instruction in string format
+                    string inst = sortedInstructions.at(i);
+                    LLVMValueRef instLLVMVal = stringToVal.at(inst);
+
+                    // Extracting upper bound of sorted instruction's liveness range
+                    int endIndexCheck = liveRange.at(instLLVMVal)[1];
+
+                    // Comparing unsorted and sorted instructions' upper bound of liveness range
+                    if (endIndex > endIndexCheck ) {
+
+                        added = true;
+                        i--;
+                    }
+                    i++;
+                }
+
+                // Instruction added to internal index in vector
+                if (added) {
+                    sortedInstructions.insert(sortedInstructions.begin() + (i), *vecIter);
+                }
+
+                // Instruction added to end of vector
+                else {
+                    sortedInstructions.push_back(*vecIter);
+                }
+            }
+        }
+    }
+    return sortedInstructions;
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -860,4 +1069,47 @@ void computeLiveness(LLVMBasicBlockRef bb, unordered_map<LLVMValueRef, int>* ins
 
                                                        
 
+void printInstIndex(unordered_map<LLVMValueRef, int>* instIndex) {
 
+    for (auto iter = instIndex->begin(); iter != instIndex->end(); ++iter) {
+
+        LLVMValueRef inst = iter->first;
+        
+
+        int begIndex = iter->second;
+        printf("Inst: %s    beg index: %d\n", LLVMPrintValueToString(inst), begIndex);
+        fflush(stdout);
+    }
+
+    printf("\n\n");
+}
+
+
+
+void printLiveRange(unordered_map<LLVMValueRef, array<int, 2>>* liveRange) {
+
+    for (auto iter = liveRange->begin(); iter != liveRange->end(); ++iter) {
+
+        LLVMValueRef inst = iter->first;
+
+        printf("Inst: %s    beg index: %d   end index: %d\n", LLVMPrintValueToString(inst), iter->second[0], iter->second[1]);
+        fflush(stdout);
+
+        
+    }
+    printf("\n\n");
+
+}
+
+
+void printRegisterAssignments(unordered_map<LLVMValueRef, string> registerAssignments) {
+
+    for (auto iter = registerAssignments.begin(); iter != registerAssignments.end(); ++iter) {
+
+        LLVMValueRef inst = iter->first;
+        string regName = iter->second;
+
+        printf("%s %s\n", LLVMPrintValueToString(inst), regName.c_str());
+    }
+
+}

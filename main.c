@@ -97,8 +97,10 @@ int main(int argc, char* argv[])
 
     /* Section 2: IR builder */
     //unordered_map<string, LLVMValueRef> varLocs = renameVariables();
-    //readAstTree(fileName);
+    readAstTree(fileName);
     //printNode(root);
+    printf("END\n");
+    fflush(stdout);
 
     
 
@@ -114,8 +116,8 @@ int main(int argc, char* argv[])
 	// walkFunctions(m);
 	// LLVMPrintModuleToFile (m, "test_new.ll", NULL);
 
-	// LLVMDisposeModule(m);
-	// LLVMShutdown();
+	//LLVMDisposeModule(m);
+	//LLVMShutdown();
 
 
 
@@ -126,68 +128,44 @@ int main(int argc, char* argv[])
 
     LLVMValueRef function =  LLVMGetFirstFunction(m2); 
 
-	for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function);
- 			basicBlock;
-  			basicBlock = LLVMGetNextBasicBlock(basicBlock)) {
+	// for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function);
+ 	// 		basicBlock;
+  	// 		basicBlock = LLVMGetNextBasicBlock(basicBlock)) {
         
 
 
 
-        unordered_map<LLVMValueRef, int>* instIndex = new unordered_map<LLVMValueRef, int>;
-        unordered_map<LLVMValueRef, array<int, 2>>* liveRange = new unordered_map<LLVMValueRef, array<int, 2>>;
+    //     unordered_map<LLVMValueRef, int>* instIndex = new unordered_map<LLVMValueRef, int>;
+    //     unordered_map<LLVMValueRef, array<int, 2>>* liveRange = new unordered_map<LLVMValueRef, array<int, 2>>;
 
         
-        computeLiveness(basicBlock, instIndex, liveRange);
+    //     computeLiveness(basicBlock, instIndex, liveRange);
 
-        printInstIndex(instIndex);
+    //     printInstIndex(instIndex);
 
-        printLiveRange(liveRange);
+    //     printLiveRange(liveRange);
 
         
 
-    }
+    // }
 
-    
+    // unordered_map<LLVMValueRef, string> registerAssignments = allocateRegisters(function);
 
+    // int asd = registerAssignments.size();
+    // printf("size: %d\n", asd);
 
+    // for (auto iter = registerAssignments.begin(); iter != registerAssignments.end(); ++iter) {
 
+    //     printf("ASDF\n");
+    //     fflush(stdout);
+
+    //     LLVMValueRef inst = iter->first;
+    //     string regName = iter->second;
+
+    //     printf("%s %s\n", LLVMPrintValueToString(inst), regName.c_str());
+    //     fflush(stdout);
+    // }
 
 
     return 0;
-}
-
-
-
-
-
-void printInstIndex(unordered_map<LLVMValueRef, int>* instIndex) {
-
-    for (auto iter = instIndex->begin(); iter != instIndex->end(); ++iter) {
-
-        LLVMValueRef inst = iter->first;
-        
-
-        int begIndex = iter->second;
-        printf("Inst: %s    beg index: %d\n", LLVMPrintValueToString(inst), begIndex);
-        fflush(stdout);
-    }
-
-    printf("\n\n");
-}
-
-
-
-void printLiveRange(unordered_map<LLVMValueRef, array<int, 2>>* liveRange) {
-
-    for (auto iter = liveRange->begin(); iter != liveRange->end(); ++iter) {
-
-        LLVMValueRef inst = iter->first;
-
-        printf("Inst: %s    beg index: %d   end index: %d\n", LLVMPrintValueToString(inst), iter->second[0], iter->second[1]);
-        fflush(stdout);
-
-        
-    }
-    printf("\n\n");
-
 }

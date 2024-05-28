@@ -17,3 +17,4 @@
 using namespace std;
 
 void computeLiveness(LLVMBasicBlockRef bb, unordered_map<LLVMValueRef, int>* instIndex, unordered_map<LLVMValueRef, array<int, 2>>* liveRange);
+unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function);
