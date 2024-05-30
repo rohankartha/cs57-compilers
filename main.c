@@ -61,9 +61,9 @@ int main(int argc, char* argv[])
 
         fileName = argv[1];
         filename = argv[2];
-        m = createLLVMModel(filename);
+        //m = createLLVMModel(filename);
 
-        if (yyin == NULL || m == NULL) {
+        if (yyin == NULL) {
             fprintf(stderr, "File open error");
             return 1;
         }
@@ -71,7 +71,7 @@ int main(int argc, char* argv[])
 
     // Conduct lexical and syntax analysis of mini-c file
     yyparse();
-    if (argc == 2) {
+    if (argc == 3) {
         fclose(yyin);
     }
     yylex_destroy();
@@ -91,16 +91,26 @@ int main(int argc, char* argv[])
     }
 
     // Free memory holding AST
-    //freeNode(root);
 
 
 
     /* Section 2: IR builder */
     //unordered_map<string, LLVMValueRef> varLocs = renameVariables();
-    //readAstTree(fileName);
+
+    //LLVMModuleCreateWithName(fileName);
+
+
+
+
+
+    LLVMModuleRef m3 = readAstTree(fileName);
     //printNode(root);
-    //printf("END\n");
-    //fflush(stdout);
+    printf("END\n");
+    fflush(stdout);
+
+    LLVMDisposeModule(m3);
+    freeNode(root);
+    
 
     
 
@@ -116,17 +126,17 @@ int main(int argc, char* argv[])
 	// walkFunctions(m);
 	// LLVMPrintModuleToFile (m, "test_new.ll", NULL);
 
-	//LLVMDisposeModule(m);
-	//LLVMShutdown();
+	//LLVMDisposeModule(m3);
+	LLVMShutdown();
 
 
 
 
     /* Section 4: Assembly code generation */
 
-    LLVMModuleRef m2 = createLLVMModel("optimizations/optimizer_test_results/p4_const_prop_opt.ll");
+    //LLVMModuleRef m2 = createLLVMModel("optimizations/optimizer_test_results/p4_const_prop_opt.ll");
 
-    LLVMValueRef function =  LLVMGetFirstFunction(m2); 
+    //LLVMValueRef function =  LLVMGetFirstFunction(m2); 
 
 	// for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function);
  	// 		basicBlock;
@@ -149,11 +159,11 @@ int main(int argc, char* argv[])
 
     // }
 
-    unordered_map<LLVMValueRef, string> registerAssignments = allocateRegisters(function);
+    //unordered_map<LLVMValueRef, string> registerAssignments = allocateRegisters(function);
 
-    FILE* fp = fopen("assemblycode", "w");
+    //FILE* fp = fopen("assemblycode", "w");
 
-    generateAssemblyCode(fp, m2, 0, registerAssignments);
+    //generateAssemblyCode(fp, m2, 0, registerAssignments);
 
     
 
@@ -173,5 +183,6 @@ int main(int argc, char* argv[])
     // }
 
 
+    //exit(0);
     return 0;
 }

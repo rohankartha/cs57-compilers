@@ -11,6 +11,7 @@ IRB = irbuilder
 OPT = optimizations
 CODEGEN = assembly-code-gen
 OBJS = semantic-analysis.o ast.o lex.yy.o y.tab.o optimizer.o optimizations.o irbuilder.o assemblycodegen.o
+VALGRIND = valgrind -s --leak-check=full --show-leak-kinds=all
 
 .PHONY: all library compiler syntaxanalyzer clean
 
@@ -56,6 +57,17 @@ front-end: syntaxanalyzer
 syntaxanalyzer: front-end/yacc.y front-end/lex.l
 	yacc -d -v -t -Wcounterexamples front-end/yacc.y
 	lex -d front-end/lex.l
+
+
+
+
+
+valgrind: 
+	$(VALGRIND) ./compiler optimizations/optimizer_test_results/p3_const_prop.c optimizations/optimizer_test_results/p3_const_prop.ll 2> valgrind.out
+
+
+
+
 
 
 ##### Remove testing output and executable files #####

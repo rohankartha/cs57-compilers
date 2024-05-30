@@ -838,7 +838,7 @@ void printDirectives(FILE* fp, LLVMValueRef function)
     fprintf(fp, ".text\n");
     fprintf(fp, ".globl\n");
     fprintf(fp, ".type\n");
-    fprintf(fp, "function %s\n");
+    fprintf(fp, "function\n");
 
     return;
 }

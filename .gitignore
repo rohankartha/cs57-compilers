@@ -55,3 +55,6 @@ front-end/testing/testing-output
 .vscode/settings.json
 front-end/compiler
 test.out
+valgrind.out
+assemblycode
+compiler
