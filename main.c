@@ -97,10 +97,10 @@ int main(int argc, char* argv[])
 
     /* Section 2: IR builder */
     //unordered_map<string, LLVMValueRef> varLocs = renameVariables();
-    readAstTree(fileName);
+    //readAstTree(fileName);
     //printNode(root);
-    printf("END\n");
-    fflush(stdout);
+    //printf("END\n");
+    //fflush(stdout);
 
     
 
@@ -149,7 +149,13 @@ int main(int argc, char* argv[])
 
     // }
 
-    // unordered_map<LLVMValueRef, string> registerAssignments = allocateRegisters(function);
+    unordered_map<LLVMValueRef, string> registerAssignments = allocateRegisters(function);
+
+    FILE* fp = fopen("assemblycode", "w");
+
+    generateAssemblyCode(fp, m2, 0, registerAssignments);
+
+    
 
     // int asd = registerAssignments.size();
     // printf("size: %d\n", asd);
