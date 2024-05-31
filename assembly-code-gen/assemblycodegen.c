@@ -1,3 +1,13 @@
+/**
+ * assemblycodegen.c – Assembly code generator for the mini-c compiler
+ * 
+ * Rohan Kartha, April 2024
+ * 
+*/
+
+
+
+/**************** Dependencies ****************/
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
@@ -18,58 +28,33 @@ using namespace std;
 
 
 
-
-
+/**************** local functions ****************/
 void computeLiveness(LLVMBasicBlockRef bb, unordered_map<LLVMValueRef, int>* instIndex, unordered_map<LLVMValueRef, array<int, 2>>* liveRange);
 unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function);
+void generateAssemblyCode(FILE* fp, LLVMValueRef function, unordered_map<LLVMValueRef, string> registerAssignments);
+
+
+
+/**************** local-global functions ****************/
 LLVMValueRef findSpill(unordered_map<LLVMValueRef, string> registerAssignments, 
         unordered_map<LLVMValueRef, array<int, 2>> liveRange, vector<LLVMValueRef> sortedList,
         LLVMValueRef instruction);
 vector<LLVMValueRef> sortInstructions(unordered_map<LLVMValueRef, array<int, 2>> liveRange);
-void generateAssemblyCode(FILE* fp, LLVMModuleRef m, int localMem, unordered_map<LLVMValueRef, 
-        string> registerAssignments);
 unordered_map<LLVMBasicBlockRef, const char*> createBBLabels(LLVMValueRef function);
 void printDirectives(FILE* fp, LLVMValueRef function);
 void printFunctionEnd(FILE* fp);
-void generateAssemblyArithmetic(FILE* fp, LLVMModuleRef m, int localMem, 
+void generateAssemblyArithmetic(FILE* fp, LLVMValueRef function, int localMem, 
         unordered_map<LLVMValueRef, string> registerAssignments, LLVMValueRef instruction,
         unordered_map<LLVMValueRef, int> offsetMap);
-void generateAssemblyCompare(FILE* fp, LLVMModuleRef m, int localMem, 
+void generateAssemblyCompare(FILE* fp, LLVMValueRef function, int localMem, 
         unordered_map<LLVMValueRef, string> registerAssignments, LLVMValueRef instruction,
         unordered_map<LLVMValueRef, int> offsetMap);
-
-
-
-
-
-
-
-
-void printInstIndex(unordered_map<LLVMValueRef, int>* instIndex);
-void printLiveRange(unordered_map<LLVMValueRef, array<int, 2>>* liveRange);
-void printRegisterAssignments(unordered_map<LLVMValueRef, string> registerAssignments);
-void printOffsetMap(unordered_map<LLVMValueRef, int> offsetMap);
-void printLabelMap(unordered_map<LLVMBasicBlockRef, const char *> labelMap);
-
-
-
-
-
-
-// anything that involves register?
-// look at liveness of each temporary variable
-
-
-
-
-
 
 
 
 /***************** computeLiveness ***********************/
 void computeLiveness(LLVMBasicBlockRef bb, unordered_map<LLVMValueRef, int>* instIndex, unordered_map<LLVMValueRef, array<int, 2>>* liveRange)
 {
-
     int index = -1;
 
     // Iterating through instructions in basic block
@@ -125,25 +110,6 @@ void computeLiveness(LLVMBasicBlockRef bb, unordered_map<LLVMValueRef, int>* ins
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /***************** allocateRegisters ***********************/
 unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function) 
 {
@@ -166,20 +132,6 @@ unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function)
         unordered_map<LLVMValueRef, array<int, 2>>* liveRange = new unordered_map<LLVMValueRef, array<int, 2>>;
         computeLiveness(bb, instIndex, liveRange);
 
-
-
-
-
-        // TESTING
-        //printInstIndex(instIndex);
-        //printLiveRange(liveRange);
-
-
-
-
-
-
-
         int instructionNum = 0;
 
         // Iterating through instructions in basic block
@@ -192,18 +144,6 @@ unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function)
 
             // If instruction is an allocate instruction, skip
             if (instructionType == LLVMAlloca) {
-
-
-
-                //printf("allocate: %s\n\n", LLVMPrintValueToString(instruction));
-
-
-
-
-
-
-
-
                 continue;
             }
 
@@ -217,30 +157,17 @@ unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function)
                     instructionType == LLVMRet ||
                     instructionType == LLVMCall)) {
 
-
-                //printf("instructionone: %s\n", LLVMPrintValueToString(instruction));
-                //printf("instruction with no result: %s\n\n", LLVMPrintValueToString(instruction));
-                fflush(stdout);
-
-
-
-
-
-
-                // If any of the operands' liveness range ends at this instruction
+                // Iterating through operands of instruction
                 int numOperands = LLVMGetNumOperands(instruction);
                 for (int i = 0; i < numOperands; i++) {
 
-
                     auto liveRangeIter = liveRange->find(instruction);
-
                     if (liveRangeIter != liveRange->end()) {
 
                         array<int, 2> operandLiveRange = liveRange->at(instruction); 
                         int endIndex = operandLiveRange[1];
 
-                        // ???
-
+                        // If any of the operands' liveness range ends at this instruction
                         if (endIndex == instructionNum) {
 
                             // If the instruction already assigned a register, add it to set of available registers
@@ -262,13 +189,7 @@ unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function)
                 }
             }
 
-
-
-
-
             else {
-
-                ///printf("instructiontwo: %s\n", LLVMPrintValueToString(instruction));
 
                 /* Case 1: Instruction is of type add/sub/mul, its first operand 
                 has register assigned, and first operand liveness range ends at instruction */
@@ -279,13 +200,6 @@ unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function)
 
                     // NEED TO UPDATE AVAILABLE REGS MORE?
 
-                    
-
-
-
-
-
-
                     // Retrieving first operand
                     LLVMValueRef firstOperand = LLVMGetOperand(instruction, 0);
 
@@ -294,12 +208,6 @@ unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function)
                     auto findOpIter = liveRange->find(firstOperand);
 
                     if (findOpIter != liveRange->end()) {
-
-
-                    
-
-
-
 
                         int endIndex = liveRange->at(firstOperand)[1];
 
@@ -313,13 +221,6 @@ unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function)
 
                             printf("add/sub/mul etc: %s\n\n", LLVMPrintValueToString(instruction));
                             fflush(stdout);
-
-
-
-
-
-
-
 
                             string registerName = registerAssignments.at(firstOperand);
                             registerAssignments.insert({instruction, registerName});
@@ -352,11 +253,6 @@ unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function)
                 }
 
 
-
-
-
-
-
                 /* Case 2: Otherwise, if a physical register is available */
 
                 if (!availableRegisters.empty()) {
@@ -366,19 +262,12 @@ unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function)
                     fflush(stdout);
 
 
-
-
-
-
-
                     // Retrieving available register name
                     string availableRegName = *availableRegisters.begin();
 
                     // Removing register name from available registers and adding it to assignment map
                     registerAssignments.insert({instruction, availableRegName});
                     availableRegisters.erase(availableRegName);
-
-
 
 
                     // Marking any registers used by operands at the end of their live ranges as available
@@ -406,16 +295,6 @@ unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function)
                 }
 
 
-
-
-
-
-
-
-
-
-
-
                 /* Case 3: Otherwise, if a physical register is not available */
 
                 else {
@@ -439,12 +318,6 @@ unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function)
 
                     int v_LivenessRange = liveRange->at(V).at(1);
                     int inst_LivenessRange = liveRange->at(instruction).at(1);
-
-
-
-
-
-
 
 
                     if (inst_LivenessRange > v_LivenessRange) {
@@ -476,61 +349,10 @@ unordered_map<LLVMValueRef, string> allocateRegisters(LLVMValueRef function)
                     }
                 }
             }
-
-
-
-
-
-            // If instruction does have a result
-
         }
-
-        // vector<LLVMValueRef> sortedList = sortInstructions(*liveRange);
-
-        // for (auto iter = sortedList.begin(); iter != sortedList.end(); ++iter) {
-
-
-        //     printf("sortedInst: %s\n", LLVMPrintValueToString(*iter));
-        // }
-        // fflush(stdout);
-
-
-
-
-
     }
-
-    printRegisterAssignments(registerAssignments);
-
-    
-    fflush(stdout);
-
-
-
     return registerAssignments;
-
 } 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -576,11 +398,6 @@ LLVMValueRef findSpill(unordered_map<LLVMValueRef, string> registerAssignments,
     }
     return NULL;
 }
-
-
-
-
-
 
 
 
@@ -670,84 +487,19 @@ vector<LLVMValueRef> sortInstructions(unordered_map<LLVMValueRef, array<int, 2>>
     // may need to reverse vector
 
     reverse(sortedInstructions.begin(), sortedInstructions.end());
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     return sortedInstructionsVal;
 }
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /***************** getOffsetMap ***********************/
-unordered_map<LLVMValueRef, int> getOffsetMap(LLVMModuleRef m)
+unordered_map<LLVMValueRef, int> getOffsetMap(LLVMValueRef function, int* localMem)
 {
     // Initializing localMem (represents offset from %ebp)
-    int localMem = 4;
+    *localMem = 4;
 
     // Intializing offsetMap
     unordered_map<LLVMValueRef, int> offsetMap;
-
-    LLVMValueRef function = LLVMGetFirstFunction(m);
     LLVMValueRef funcParam = LLVMGetParam(function, 0);
 
     // Generating instruction to push parameter onto stack
@@ -769,8 +521,8 @@ unordered_map<LLVMValueRef, int> getOffsetMap(LLVMModuleRef m)
 
                 // If instruction is an allocate instruction
                 case LLVMAlloca: {
-                    localMem = localMem + 4;
-                    offsetMap.insert({instruction, -1*localMem});
+                    *localMem = *localMem + 4;
+                    offsetMap.insert({instruction, -1*(*localMem)});
                     break;
                 }
 
@@ -800,33 +552,12 @@ unordered_map<LLVMValueRef, int> getOffsetMap(LLVMModuleRef m)
                     int x = offsetMap.at(firstOperand);
                     offsetMap.insert({instruction, x});
                     break;
-
                 }
             }
         }
     }
     return offsetMap;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -845,25 +576,14 @@ void printDirectives(FILE* fp, LLVMValueRef function)
 
 
 
-
 /***************** printFunctionEnd ***********************/
 void printFunctionEnd(FILE* fp)
 {
 
-
-    // RET EAX OR JUST RET?
-
     // Emitting leave and return instructions
     fprintf(fp, "leave\n");
     fprintf(fp, "ret\n");
-
-
 }
-
-
-
-
-
 
 
 
@@ -888,348 +608,223 @@ unordered_map<LLVMBasicBlockRef, const char*> createBBLabels(LLVMValueRef functi
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /***************** generateAssemblyCode ***********************/
-void generateAssemblyCode(FILE* fp, LLVMModuleRef m, int localMem, unordered_map<LLVMValueRef, 
-        string> registerAssignments)
+void generateAssemblyCode(FILE* fp, LLVMValueRef function, unordered_map<LLVMValueRef, string> registerAssignments)
 {
+    // Creating BBLabels
+    unordered_map<LLVMBasicBlockRef, const char*> bbLabelMap;
+    bbLabelMap = createBBLabels(function);
 
-    // FIX FOR MULTIPLE FUNCTIONS
-    // Iterating through functions in module
-    // for (LLVMValueRef function = LLVMGetFirstFunction(m); function != NULL; 
-    //         function = LLVMGetNextFunction(function)) {
+    // Printing directives
+    printDirectives(fp, function);
 
+    // Initializing offset map
+    int localMem = 0;
+    unordered_map<LLVMValueRef, int> offsetMap = getOffsetMap(function, &localMem);
 
+    
 
-        LLVMValueRef function = LLVMGetFirstFunction(m);
+    // Pushing value of base pointer onto stack
+    fprintf(fp, "pushl %%ebp\n");
 
-        // Creating BBLabels
-        unordered_map<LLVMBasicBlockRef, const char*> bbLabelMap;
-        bbLabelMap = createBBLabels(function);
+    // Updating base pointer
+    fprintf(fp, "movl %%esp, %%ebp\n");
 
+    // Updating stack pointer
+    fprintf(fp, "subl %d, %%esp\n", localMem);
 
-        printLabelMap(bbLabelMap);
+    // Freeing register %ebx for new function 
+    fprintf(fp, "pushl %%ebx\n");
 
+    // Iterating through each basic block in the function
+    for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); bb != NULL; 
+            bb = LLVMGetNextBasicBlock(bb)) {
 
+        // Printing basic block label
+        const char* bbName = bbLabelMap.at(bb);
+        fprintf(fp, "\n\nBasic block: %s\n\n", bbName);
 
+        // Iterating through each instruction in the basic block
+        for (LLVMValueRef instruction = LLVMGetFirstInstruction(bb); instruction != NULL; 
+                instruction = LLVMGetNextInstruction(instruction)) {
 
-
-
-
-
-        // Printing directives
-        printDirectives(fp, function);
-
-        // Initializing offset map
-        unordered_map<LLVMValueRef, int> offsetMap = getOffsetMap(m);
-
-
-        printOffsetMap(offsetMap);
-
-
-
-
-
-
-
-
-
-
-
-
-
-        // Pushing value of base pointer onto stack
-        fprintf(fp, "pushl %%ebp\n");
-
-        // Updating base pointer
-        fprintf(fp, "movl %%esp, %%ebp\n");
-
-        // Updating stack pointer
-        fprintf(fp, "subl %d, %%esp\n", localMem);
-
-        // Freeing register %ebx for new function 
-        fprintf(fp, "pushl %%ebx\n");
-
-
-
-
-
-
-
-
-
-
-        // Iterating through each basic block in the function
-        for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); bb != NULL; 
-                bb = LLVMGetNextBasicBlock(bb)) {
-            
-            // Iterating through each instruction in the basic block
-            for (LLVMValueRef instruction = LLVMGetFirstInstruction(bb); instruction != NULL; 
-                    instruction = LLVMGetNextInstruction(instruction)) {
-
-                LLVMOpcode instType = LLVMGetInstructionOpcode(instruction);
+            LLVMOpcode instType = LLVMGetInstructionOpcode(instruction);
                 
+            switch(instType) {
 
-                switch(instType) {
+                /* Case 1: Return instruction */
+                case LLVMRet: {
+
+                    // Extracting return value from LLVM return instruction
+                    LLVMValueRef retValue = LLVMGetOperand(instruction, 0);
+
+                    // If returning a constant
+                    if (LLVMIsConstant(retValue)) {
+                        long long retInt = LLVMConstIntGetSExtValue(retValue);
+                        printf("TEST1\n");
+                        fprintf(fp, "movl $%lld, %%eax", retInt);     
+                    }
+
+                    // Otherwise, if returning a temporary variable
+                    else {
+                        string assignedRegName = registerAssignments.at(retValue);
+
+                        // If returning a temporary variable stored in memory, emitting appropriate instruction
+                        if (strcmp(assignedRegName.c_str(), "-1") == 0) {
+                            int k = offsetMap.at(retValue);
+                            printf("TEST2\n");
+                            fprintf(fp, "movl %d(%%ebp), %%eax\n", k);
+                        }
+
+                        // If returning a temporary variable stored in register, emitting appropriate instruction
+                        else {
+                            fprintf(fp, "movl %s, %%eax\n", assignedRegName.c_str());
+                        }
+                    }
+
+                    // Retrieving value initially stored in register %ebx
+                    fprintf(fp, "popl %%ebx\n");
+
+                    // Printing function end
+                    printFunctionEnd(fp);
+                    break;
+                }
 
 
+                /* Case 2: Load instruction */
+                case LLVMLoad: {
+
+                    // Checking if register has been assigned to instruction
+                    string assignedRegName = registerAssignments.at(instruction);
+
+                    // If no register is assigned to instruction, retrieve variable value from stack
+                    if (strcmp(assignedRegName.c_str(), "-1") != 0) {
+                        int c = offsetMap.at(LLVMGetOperand(instruction, 0));
+                        printf("TEST3\n");
+                        fprintf(fp, "movl %d(%%ebp),%s\n", c, assignedRegName.c_str());
+                    }
+                    break;
+                }
 
 
+                /* Case 3: Store instruction */
+                case LLVMStore: {
+
+                    // Retrieving operand
+                    LLVMValueRef operand = LLVMGetOperand(instruction, 0);
+
+                    // Skipping if store instruction concerns a parameter
+                    if (operand == LLVMGetParam(function, 0)) {
+                        continue;
+                    }
+
+                    // If store instruction saves a constant
+                    else if (LLVMIsConstant(operand)) {
+                        long long intValue = LLVMConstIntGetSExtValue(operand);
+                        int c = offsetMap.at(operand);
+                        printf("TEST4\n");
+                        fprintf(fp, "movl $%lld, %d(%%ebp)\n", intValue, c);
+                    }
+
+                    // If store instruction concerns a temporary variable
+                    else {
+                        string assignedRegName = registerAssignments.at(operand);
+
+                        // If operand has been assigned a register
+                        if (strcmp(assignedRegName.c_str(), "-1") != 0) {
+                            int c = offsetMap.at(LLVMGetOperand(instruction, 1));
+                            printf("TEST5\n");
+                            fprintf(fp, "movl %s, %d(%%ebp)\n", assignedRegName.c_str(), c);
+                        }
+
+                        else {
+                            int c1 = offsetMap.at(LLVMGetOperand(instruction, 0));
+                            fprintf(fp, "movl %d(%%ebp), %%eax\n", c1);
+                            int c2 = offsetMap.at(LLVMGetOperand(instruction, 1));
+                            fprintf(fp, "movl %%eax, %d(%%ebp)\n", c2);
+                        }
+                    }
+                    break;
+                }
 
 
+                /* Case 4: Call instruction */
+                case LLVMCall: {
 
+                    // Saving contents of register before function call
+                    fprintf(fp, "pushl %%ecx\n");
+                    fprintf(fp, "pushl %%edx\n");
 
-                    /* Case 1: Return instruction */
-                    case LLVMRet: {
+                    // If function has a parameter
+                    LLVMValueRef parameter;
+                    if (LLVMGetNumArgOperands(instruction) > 0) {
 
+                        // Extracting parameter
+                        parameter = LLVMGetArgOperand(instruction, 0);
 
-
-
-
-
-                        printf("retTest\n");
-                        fflush(stdout);
-                        
-
-
-
-
-
-                        // Extracting return value from LLVM return instruction
-                        LLVMValueRef retValue = LLVMGetOperand(instruction, 0);
-
-                        // If returning a constant
-                        if (LLVMIsConstant(retValue)) {
-
-                            long long retInt = LLVMConstIntGetSExtValue(retValue);
-                            fprintf(fp, "movl $%lld, %%eax", retInt);
+                        // If the parameter is a constant
+                        if (LLVMIsConstant(parameter)) {
+                            long long constVal = LLVMConstIntGetSExtValue(parameter);
+                            fprintf(fp, "pushl $%lld\n", constVal);
+                        }
                             
-                        }
-
-                        
+                        // If the parameter is a temporary variable
                         else {
 
-                            string assignedRegName = registerAssignments.at(retValue);
-
-                            printf("assigned reg name: %s\n", assignedRegName.c_str());
-
-
-
-
-
-
-
-
-
-                            // TEST THIS STATEMENT
-                            // If returning a temporary variable stored in memory, emitting appropriate instruction
-                            if (strcmp(assignedRegName.c_str(), "-1") == 0) {
-
-                                int k = offsetMap.at(retValue);
-                                fprintf(fp, "movl %d(%%ebp), %%eax\n", k);
-                            }
-
-                            // If returning a temporary variable stored in register, emitting appropriate instruction
-                            else {
-                                fprintf(fp, "movl %s, %%eax\n", assignedRegName.c_str());
-                            }
-                        }
-
-                        // Retrieving value initially stored in register %ebx
-                        fprintf(fp, "popl %%ebx\n");
-
-                        // Printing function end
-                        printFunctionEnd(fp);
-                        break;
-                    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                    /* Case 2: Load instruction */
-                    case LLVMLoad: {
-
-                        // Checking if register has been assigned to instruction
-                        string assignedRegName = registerAssignments.at(instruction);
-
-                        // If no register is assignment to instruction, retrieve variable value from stack
-                        if (assignedRegName != "-1") {
-
-                            int c = offsetMap.at(LLVMGetOperand(instruction, 0));
-                            fprintf(fp, "movl %d(%%ebp),%s\n", c, assignedRegName.c_str());
-                        }
-                        break;
-                    }
-
-
-
-
-
-
-
-                    /* Case 3: Store instruction */
-                    case LLVMStore: {
-
-                        // Skipping if store instruction concerns a parameter
-                        LLVMValueRef operand = LLVMGetOperand(instruction, 0);
-                        if (operand == LLVMGetParam(function, 0)) {
-                            continue;
-                        }
-
-                        // If store instruction saves a constant
-                        else if (LLVMIsConstant(operand)) {
-                            long long intValue = LLVMConstIntGetSExtValue(operand);
-                            int c = offsetMap.at(operand);
-                            fprintf(fp, "movl $%lld, %d(%%ebp)\n", intValue, c);
-                        }
-
-                        // If store instruction concerns a temporary variable
-                        else {
-                            string assignedRegName = registerAssignments.at(operand);
-
-                            // If operand has been assigned a register
+                            // If the parameter has a register assigned
+                            string assignedRegName = registerAssignments.at(parameter);
                             if (strcmp(assignedRegName.c_str(), "-1") != 0) {
-
-                                int c = offsetMap.at(LLVMGetOperand(instruction, 1));
-                                fprintf(fp, "movl %s, %d(%%ebp)\n", assignedRegName.c_str(), c);
+                                fprintf(fp, "pushl %s\n", assignedRegName.c_str());
                             }
-
+                                
                             else {
-                                int c1 = offsetMap.at(LLVMGetOperand(instruction, 0));
-                                fprintf(fp, "movl %d(%%ebp), %%eax\n", c1);
-                                int c2 = offsetMap.at(LLVMGetOperand(instruction, 1));
-                                fprintf(fp, "movl %%eax, %d(%%ebp)\n", c2);
+                                int k = offsetMap.at(parameter);
+                                fprintf(fp, "pushl %d(%%ebp)\n", k);
                             }
                         }
-                        break;
-                    }
 
+                        // Emitting call function
+                        if ((parameter = LLVMGetFirstParam(function)) != NULL) {
 
+                            // Undoing the pushing of the parameter
+                            fprintf(fp, "addl $4, %%esp\n");
 
+                            // If instruction is of the form (%a = call type @func())
+                            char* instructionString = LLVMPrintValueToString(instruction);
+                            char firstChar = instructionString[0];
 
-              
-                    /* Case 4: Call instruction */
-                    case LLVMCall: {
+                            if (firstChar == '%') {
 
-                        // Saving contents of register before function call
-                        fprintf(fp, "pushl %%ecx\n");
-                        fprintf(fp, "pushl %%edx\n");
+                                // If instruction has physical register assigned to it
+                                if (strcmp(registerAssignments.at(instruction).c_str(), "-1") != 0) {
 
-                        // If function has a parameter
-                        LLVMValueRef parameter;
-                        if (LLVMGetNumArgOperands(instruction) > 0) {
+                                    string assignedRegName = registerAssignments.at(instruction);
+                                    fprintf(fp, "movl %%eax, %s\n", assignedRegName.c_str());
 
-                            // Extracting parameter
-                            parameter = LLVMGetArgOperand(instruction, 0);
+                                    // Updating value in memory if applicable
+                                    auto iter = offsetMap.find(instruction);
+                                    if (iter != offsetMap.end()) {
+                                        int k = offsetMap.at(instruction);
 
-                            // If the parameter is a constant
-                            if (LLVMIsConstant(parameter)) {
-                                long long constVal = LLVMConstIntGetSExtValue(parameter);
-                                fprintf(fp, "pushl $%lld\n", constVal);
-                            }
-                            
-                            // If the parameter is a temporary variable
-                            else {
-
-                                // If the parameter has a register assigned
-                                string assignedRegName = registerAssignments.at(parameter);
-                                if (strcmp(assignedRegName.c_str(), "-1") != 0) {
-                                    fprintf(fp, "pushl %s\n", assignedRegName.c_str());
-                                }
-                                
-                                else {
-                                    int k = offsetMap.at(parameter);
-                                    fprintf(fp, "pushl %d(%%ebp)\n", k);
-                                }
-                            }
-
-                            // Emitting call function
-                            if ((parameter = LLVMGetFirstParam(function)) != NULL) {
-
-                                // Undoing the pushing of the parameter
-                                fprintf(fp, "addl $4, %%esp\n");
-
-                                // If instruction is of the form (%a = call type @func())
-                                char* instructionString = LLVMPrintValueToString(instruction);
-                                char firstChar = instructionString[0];
-
-                                if (firstChar == '%') {
-
-                                    // If instruction has physical register assigned to it
-                                    if (strcmp(registerAssignments.at(instruction).c_str(), "-1") != 0) {
-
-                                        string assignedRegName = registerAssignments.at(instruction);
-                                        fprintf(fp, "movl %%eax, %s\n", assignedRegName.c_str());
-
-                                        // Updating value in memory if applicable
-                                        auto iter = offsetMap.find(instruction);
-                                        if (iter != offsetMap.end()) {
-                                            int k = offsetMap.at(instruction);
-
-                                            fprintf(fp, "movl %%eax, %d(%%ebp)\n", k);
-                                            fprintf(fp, "popl %%edx\n");
-                                            fprintf(fp, "popl %%ecx\n");
-                                        }
+                                        fprintf(fp, "movl %%eax, %d(%%ebp)\n", k);
+                                        fprintf(fp, "popl %%edx\n");
+                                        fprintf(fp, "popl %%ecx\n");
                                     }
                                 }
                             }
                         }
-                        break;
                     }
+                    break;
+                }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-                    case LLVMBr: {
-
+                /* Case 4: Branch instruction */
+                case LLVMBr: {
 
                         int numOperands = LLVMGetNumOperands(instruction);
 
-
                         // If unconditional branch
                         if (numOperands == 1) {
-                            printf("TEST3\n");
-                            fflush(stdout);
 
                             // NOT SURE
                             LLVMBasicBlockRef block = LLVMValueAsBasicBlock(LLVMGetOperand(instruction, 0));
@@ -1239,8 +834,6 @@ void generateAssemblyCode(FILE* fp, LLVMModuleRef m, int localMem, unordered_map
 
                             // Emitting jump instruction
                             fprintf(fp, "jmp %s\n", newBlockName);
-
-
                         }
 
                         // If conditional branch
@@ -1250,51 +843,38 @@ void generateAssemblyCode(FILE* fp, LLVMModuleRef m, int localMem, unordered_map
                             const char* L1 = bbLabelMap.at(LLVMValueAsBasicBlock(LLVMGetOperand(instruction, 2)));
                             const char* L2 = bbLabelMap.at(LLVMValueAsBasicBlock(LLVMGetOperand(instruction, 1)));
 
-                            printf("TEST5\n");
-                            fflush(stdout);
-
                             // Retrieving predicate
                             LLVMIntPredicate jmpPred = LLVMGetICmpPredicate(LLVMGetOperand(instruction, 0));
 
-                            
-
-                            // signed or unsigned??
-
-
+                            // Based on predicate, generating appropriate jump instruction
                             switch(jmpPred) {
 
                                 case LLVMIntEQ: {
-                                    printf("TEST6\n");
                                     fprintf(fp, "je %s\n", L1);
                                     break;
                                 }
 
                                 case LLVMIntNE: {
-                                    printf("TEST6\n");
                                     fprintf(fp, "jne %s\n", L1);
                                     break;
                                 }
 
                                 case LLVMIntSGT: {
-                                    printf("TEST6\n");
                                     fprintf(fp, "jg %s\n", L1);
                                     break;
                                 }
 
                                 case LLVMIntSGE: {
-                                    printf("TEST6\n");
                                     fprintf(fp, "jge %s\n", L1);
                                     break;
                                 }
 
                                 case LLVMIntSLT: {
-                                    printf("TEST6\n");
                                     fprintf(fp, "jl %s\n", L1);
                                     break;
                                 }
 
                                 case LLVMIntSLE: {
-                                    printf("TEST6\n");
                                     fprintf(fp, "jle %s\n", L1);
                                     break;
                                 }
@@ -1307,62 +887,36 @@ void generateAssemblyCode(FILE* fp, LLVMModuleRef m, int localMem, unordered_map
                     }
 
 
-
-
-
-
-
-
                     /* Case 6: Arithmetic instructions */
                     case LLVMAdd: {
-                        generateAssemblyArithmetic(fp, m, localMem, registerAssignments, instruction, offsetMap);
+                        generateAssemblyArithmetic(fp, function, localMem, registerAssignments, instruction, offsetMap);
                         break;
                     }
 
                     case LLVMSub: {
-                        generateAssemblyArithmetic(fp, m, localMem, registerAssignments, instruction, offsetMap);
+                        generateAssemblyArithmetic(fp, function, localMem, registerAssignments, instruction, offsetMap);
                         break;
                     }
 
                     case LLVMMul: {
-                        generateAssemblyArithmetic(fp, m, localMem, registerAssignments, instruction, offsetMap);
+                        generateAssemblyArithmetic(fp, function, localMem, registerAssignments, instruction, offsetMap);
                         break;
                     }
 
-
-
-
-
                     /* Case 7: Comparison instruction */
                     case LLVMICmp: {
-                        generateAssemblyCompare(fp, m, localMem, registerAssignments, instruction, offsetMap);
+                        generateAssemblyCompare(fp, function, localMem, registerAssignments, instruction, offsetMap);
                         break;
                     }
                 }
             }
         }
-   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    }
 
 
 
 /***************** generateAssemblyArithmetic ***********************/
-void generateAssemblyArithmetic(FILE* fp, LLVMModuleRef m, int localMem, 
+void generateAssemblyArithmetic(FILE* fp, LLVMValueRef function, int localMem, 
         unordered_map<LLVMValueRef, string> registerAssignments, LLVMValueRef instruction,
         unordered_map<LLVMValueRef, int> offsetMap)
 {
@@ -1477,7 +1031,6 @@ void generateAssemblyArithmetic(FILE* fp, LLVMModuleRef m, int localMem,
                 }
             }
         }
-
     }
 
     // If result is stored in memory (if it is not a temporary variable), updating it
@@ -1488,20 +1041,13 @@ void generateAssemblyArithmetic(FILE* fp, LLVMModuleRef m, int localMem,
 
         int k = offsetMap.at(instruction);
         fprintf(fp, "movl %%eax, %d(%%ebp)\n", k);
-
     }
 }
 
     
 
-
-
-
-
-
-
 /***************** generateAssemblyCompare ***********************/
-void generateAssemblyCompare(FILE* fp, LLVMModuleRef m, int localMem, 
+void generateAssemblyCompare(FILE* fp, LLVMValueRef function, int localMem, 
         unordered_map<LLVMValueRef, string> registerAssignments, LLVMValueRef instruction,
         unordered_map<LLVMValueRef, int> offsetMap)
 {
@@ -1546,15 +1092,9 @@ void generateAssemblyCompare(FILE* fp, LLVMModuleRef m, int localMem,
 
     // If second operand is a constant
     if (LLVMIsConstant(LLVMGetOperand(instruction, 1))) {
-
         long long secondOpConst = LLVMConstIntGetSExtValue(secondOperand);
         fprintf(fp, "cmpl $%lld, %s\n", secondOpConst, assignedRegName.c_str());
     }
-
-
-
-
-
 
     // If second operand is a temporary variable
     else {
@@ -1563,150 +1103,13 @@ void generateAssemblyCompare(FILE* fp, LLVMModuleRef m, int localMem,
 
         // If second operand has already been assigned register
         if (strcmp(registerAssignments.at(secondOperand).c_str(), "-1") != 0) {
-
             fprintf(fp, "cmpl %s, %s\n", operandAssignedRegName.c_str(), assignedRegName.c_str());
         }
     
         // If second operand has not been assigned register
         else {
-
             int m_1 = offsetMap.at(secondOperand);
             fprintf(fp, "cmpl %d(%%ebp), %s\n", m_1, assignedRegName.c_str());
         }
-
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// FOR TESTING
-void printInstIndex(unordered_map<LLVMValueRef, int>* instIndex) {
-
-    for (auto iter = instIndex->begin(); iter != instIndex->end(); ++iter) {
-
-        LLVMValueRef inst = iter->first;
-        
-
-        int begIndex = iter->second;
-        printf("Inst: %s    beg index: %d\n", LLVMPrintValueToString(inst), begIndex);
-        fflush(stdout);
-    }
-
-    printf("\n\n");
-}
-
-
-
-void printLiveRange(unordered_map<LLVMValueRef, array<int, 2>>* liveRange) {
-
-    for (auto iter = liveRange->begin(); iter != liveRange->end(); ++iter) {
-
-        LLVMValueRef inst = iter->first;
-
-        printf("Inst: %s    beg index: %d   end index: %d\n", LLVMPrintValueToString(inst), iter->second[0], iter->second[1]);
-        fflush(stdout);
-
-        
-    }
-    printf("\n\n");
-
-}
-
-
-void printRegisterAssignments(unordered_map<LLVMValueRef, string> registerAssignments) {
-
-    for (auto iter = registerAssignments.begin(); iter != registerAssignments.end(); ++iter) {
-
-        LLVMValueRef inst = iter->first;
-        string regName = iter->second;
-
-        printf("%s %s\n", LLVMPrintValueToString(inst), regName.c_str());
-    }
-
-}
-
-
-void printOffsetMap(unordered_map<LLVMValueRef, int> offsetMap) {
-
-    for (auto iter = offsetMap.begin(); iter != offsetMap.end(); ++iter) {
-        printf("Val: %s     ", LLVMPrintValueToString(iter->first));
-        printf("offset: %d\n", iter->second);
-        fflush(stdout);
-
-    }
-}
-
-
-
-void printLabelMap(unordered_map<LLVMBasicBlockRef, const char *> labelMap) {
-
-    for (auto iter = labelMap.begin(); iter != labelMap.end(); ++iter) {
-
-        printf("bb: %s     ", LLVMPrintValueToString(LLVMBasicBlockAsValue(iter->first)));
-        printf("label: %s\n", (iter->second));
-        fflush(stdout);
-
-    }
-}
-
-
-// unordered_map<LLVMBasicBlockRef, const char *>

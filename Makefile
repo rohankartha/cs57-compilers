@@ -23,7 +23,7 @@ all: compiler
 ##### 
 compiler:
 	make modules
-	g++ -g main.c $(OBJS) $(FLAGS) -o compiler
+	g++ -g compiler.c $(OBJS) $(FLAGS) -o compiler
 
 
 ##### Make library of object files
@@ -59,15 +59,9 @@ syntaxanalyzer: front-end/yacc.y front-end/lex.l
 	lex -d front-end/lex.l
 
 
-
-
-
+##### Testing for memory leaks #####
 valgrind: 
-	$(VALGRIND) ./compiler optimizations/optimizer_test_results/p5_const_prop.c optimizations/optimizer_test_results/p3_const_prop.ll 2> valgrind.out
-
-
-
-
+	$(VALGRIND) ./compiler optimizations/optimizer_test_results/p5_const_prop.c 2> valgrind.out
 
 
 ##### Remove testing output and executable files #####

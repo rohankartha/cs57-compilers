@@ -2,11 +2,10 @@
 
 ## Rohan Kartha (rohankartha)
 
-### Testing
+### Usage
 
-1. Enter `make library` to generate mini-c compiler library
+1. Enter `make clean` to remove executables
 2. Enter `make` to generate compiler executable.
-3. Enter ```bash ./compiler FILE.c FILE.ll``` in the command line to run compiler
-4. See `stdout` to view output from syntax + semantic analysis
-5. See `test_new.ll` and `test_old.ll` to view unoptimized and optimized versions of llvm representation
-6. Enter `make clean` to remove executables and output files from directory
+3. Enter ```{bash} ./compiler FILE.c``` in the command line to run compiler
+4. See `after_ir_builder.ll` and `after_opt.ll` to view unoptimized and optimized versions of llvm representation
+5. See `assembly.asm` for x86 assembly instructions

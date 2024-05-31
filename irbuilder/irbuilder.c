@@ -1,16 +1,13 @@
 /**
- * irbuilder.c
+ * irbuilder.c – IR Builder for the mini-c compiler
  * 
  * Rohan Kartha – May 2024
  * 
 */
 
-// can we have while (1){}
-// extern functions for part 1
-// add unary for preprocessing
 
 
-/***************** dependencies ***********************/
+/***************** Dependencies ***********************/
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
@@ -25,6 +22,7 @@
 #include <stack>
 #include <set>
 using namespace std;
+
 
 
 /***************** local-global function declarations ***********************/
@@ -49,6 +47,7 @@ LLVMValueRef generateIRExpression(astNode* expressionNode, LLVMBuilderRef builde
 string generateNewBBName(LLVMBasicBlockRef bb, int* blockNum);
 
 
+
 /***************** local-global variables ***********************/
 LLVMValueRef ret_ref;
 LLVMBasicBlockRef retBB;
@@ -57,32 +56,6 @@ LLVMTypeRef printFunc;
 LLVMTypeRef readFunc;
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    void printTestSet(set<string> names);
-    void printAllocMap(unordered_map<string, LLVMValueRef> allocMap);
-
-
-
-
-// static void printTest(unordered_map<string, LLVMValueRef>* varNameMap);
-// static void printTestTwo(unordered_map<string, int>* nameFreqMap);
 
 /*
 * Section 1 – Preprocessing
@@ -520,55 +493,10 @@ char* replaceWithUniqueHelper(string oldVarName, unordered_map<string, int>* nam
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /*
 * Section 2 – Building LLVM IR
 *
 */
-
 
 /***************** buildIR ***********************/
 LLVMModuleRef buildIR(unordered_map<string, int>* nameFreqMap, char* filename) 
@@ -732,36 +660,7 @@ LLVMModuleRef buildIR(unordered_map<string, int>* nameFreqMap, char* filename)
     LLVMDisposeBuilder(builder);
 
     return module;
-
-
-    
-
-
-
-
-
-
-
-
-    /*
-
-
-
-Get the terminator instruction of exitBB basic block:
-if the terminator is NULL (there is no return statement at the end of the function body)
-Set the position of the builder to the end of exitBB.
-Generate an unconditional branch to retBB.
-Remove all basic blocks that do not have any predecessor basic blocks (think breadth-first search (BFS) !!!)
-Time for memory cleanup (delete memory from maps, sets, builder)!*/
-
-
 }
-
-
-
-
-
-
 
 
 
@@ -977,21 +876,6 @@ LLVMBasicBlockRef generateIRStatement(astNode* statementNode, LLVMBuilderRef bui
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /***************** generateIRExpression ***********************/
 LLVMValueRef generateIRExpression(astNode* expressionNode, LLVMBuilderRef builder,
         unordered_map<string, LLVMValueRef> var_map, LLVMValueRef readValRef, LLVMBasicBlockRef bb)
@@ -1169,6 +1053,7 @@ LLVMValueRef generateIRExpression(astNode* expressionNode, LLVMBuilderRef builde
 }
 
 
+
 /***************** generateNewBBName ***********************/
 string generateNewBBName(LLVMBasicBlockRef bb, int* blockNum) 
 {
@@ -1181,90 +1066,3 @@ string generateNewBBName(LLVMBasicBlockRef bb, int* blockNum)
     string newParentBBName = "BB" + to_string(*blockNum);
     return (newParentBBName);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- /*
-                
-                LLVMTypeRef testParam = LLVMInt32Type();
-    LLVMTypeRef testParamTypes[] = {};
-    LLVMTypeRef testIntRet = LLVMVoidType();
-    LLVMTypeRef testFunc = LLVMFunctionType(testIntRet, testParamTypes, 1, false);
-
-    LLVMValueRef testVal = LLVMAddFunction(module, "test", testFunc);
-    LLVMValueRef testInputs[] = {};
-
-    LLVMValueRef testInst = LLVMBuildCall2(builder, testFunc, testVal, testInputs, 0, "test");*/
-
-
-// static void printTest(unordered_map<string, LLVMValueRef>* varNameMap) {
-//     printf("------------\n");
-
-//     for (auto iter = varNameMap->begin(); iter != varNameMap->end(); ++iter) {
-//         string test = iter->first;
-
-
-//         cout << test << endl;
-//     }
-//     printf("------------\n");
-
-// }
-
-
-// static void printTestTwo(unordered_map<string, int>* nameFreqMap) {
-//     printf("------------\n");
-
-//     for (auto iter = nameFreqMap->begin(); iter != nameFreqMap->end(); ++iter) {
-//         string test = iter->first;
-//         int freq = iter->second;
-
-
-//         cout << test;
-//         cout << " ";
-//         cout << freq << endl;
-//     }
-//     printf("------------\n");
-
-// }
-
-    // void printTestSet(set<string> names) {
-    //     printf("Printing var names\n");
-    //     for (auto iter = names.begin(); iter != names.end(); ++iter) {
-    //         string name = *iter;
-
-    //         cout << name << endl;
-            
-    //     }
-    // }
-
-
-    // void printAllocMap(unordered_map<string, LLVMValueRef> allocMap) {
-    //     for (auto iter = allocMap.begin(); iter != allocMap.end(); ++iter) {
-    //         string name = iter->first;
-    //         string allocInst = LLVMPrintValueToString(iter->second);
-
-    //         printf("test\n");
-    //         fflush(stdout);
-
-    //         cout << name + " " + allocInst << endl;
-    //         fflush(stdout);
-    //     }
-    // }
