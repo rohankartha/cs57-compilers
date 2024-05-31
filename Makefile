@@ -63,7 +63,7 @@ syntaxanalyzer: front-end/yacc.y front-end/lex.l
 
 
 valgrind: 
-	$(VALGRIND) ./compiler optimizations/optimizer_test_results/p3_const_prop.c optimizations/optimizer_test_results/p3_const_prop.ll 2> valgrind.out
+	$(VALGRIND) ./compiler optimizations/optimizer_test_results/p5_const_prop.c optimizations/optimizer_test_results/p3_const_prop.ll 2> valgrind.out
 
 
 

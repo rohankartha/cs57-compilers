@@ -40,36 +40,32 @@ unordered_map<string, LLVMValueRef> replaceWithUnique(astNode* node, unordered_m
         LLVMValueRef> varNameMap);
 char* replaceWithUniqueHelper(string oldVarName, unordered_map<string, int>* nameFreqMap, unordered_map<string, 
         LLVMValueRef> varNameMap);
-
-
-
-
-
-
-
-
-
-
 LLVMModuleRef buildIR(unordered_map<string, int>* nameFreqMap, char* filename);
 LLVMBasicBlockRef generateIRStatement(astNode* statementNode, LLVMBuilderRef builder, 
         LLVMBasicBlockRef startBB, unordered_map<string, LLVMValueRef> var_map, LLVMValueRef readValRef,
         LLVMValueRef mainFuncRef, int* blockNum);
 LLVMValueRef generateIRExpression(astNode* expressionNode, LLVMBuilderRef builder,
         unordered_map<string, LLVMValueRef> var_map, LLVMValueRef readValRef, LLVMBasicBlockRef bb);
-
 string generateNewBBName(LLVMBasicBlockRef bb, int* blockNum);
-
-
-
-
-
-
 
 
 /***************** local-global variables ***********************/
 LLVMValueRef ret_ref;
 LLVMBasicBlockRef retBB;
 LLVMValueRef printValRef;
+LLVMTypeRef printFunc;
+LLVMTypeRef readFunc;
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -111,30 +107,11 @@ LLVMModuleRef readAstTree(char* filename)
 
     // Extracting parameter variable and adding it to maps
     string param(func.param->var.name);
-
-    // char* rawString = (char*) malloc(strlen(func.param->var.name) + 10);
-    // const char* nullTerm = "\0";
-
-    // rawString = strcpy(rawString, func.param->var.name);
-
-    // rawString = strcat(rawString, nullTerm);
-
-    // string param(rawString);
-
-
-
-
-
-
-
-
     nameFreqMap->insert({param, 0});
     varNameMap.insert({param, nullptr});
 
     // Starting iteration through ast tree
     extractStatementList(block, varNameStack, nameFreqMap, varNameMap);
-
-
 
     LLVMModuleRef module = buildIR(nameFreqMap, filename);
     char* test= LLVMPrintModuleToString(module);
@@ -184,8 +161,6 @@ unordered_map<string, LLVMValueRef> renameVariables(unordered_map<string, LLVMVa
 
     // Iterating through each type of statement
     switch (statement.type) {
-
-        // ADD CALL
 
         /* Case 1: If statement is a declaration statement, add a new unique variable to the map */
         case ast_decl: {
@@ -297,11 +272,19 @@ unordered_map<string, LLVMValueRef> renameVariables(unordered_map<string, LLVMVa
         /* Case 4: If statement is an assignment statement, replace uses of variable with appropriate scope variants */
         case ast_asgn: {
             varNameMap = replaceWithUnique(node, nameFreqMap, varNameMap);
+            break;
         }
 
         /* Case 5: If statement is an return statement, replace uses of variable with appropriate scope variants */
         case ast_ret: {
             varNameMap = replaceWithUnique(node, nameFreqMap, varNameMap);
+            break;
+        }
+
+        /* Case 6: If statement if a call statement (print) */
+        case ast_call: {
+            varNameMap = replaceWithUnique(node, nameFreqMap, varNameMap);
+            break;
         }
     }
     return varNameMap;
@@ -473,6 +456,41 @@ unordered_map<string, LLVMValueRef> replaceWithUnique(astNode* node, unordered_m
             }
             break;
         }
+
+        /* Case 5: If statement is an if/else statement, updating any variables with new names in condition statement */
+        case ast_if: {
+            astIf ifstmt = statement.ifn;
+            astNode* cond = ifstmt.cond;
+            if (cond->type == ast_rexpr) {
+
+                astRExpr condition = ifstmt.cond->rexpr;
+                if ((condition.lhs)->type == ast_var) {
+
+                    char* oldVarName = condition.lhs->var.name;
+                    char* constructedNameLHS = replaceWithUniqueHelper(oldVarName, nameFreqMap, varNameMap);
+                    condition.lhs->var.name = constructedNameLHS;
+                }
+
+                if ((condition.rhs)->type == ast_var) {
+                    char* oldVarName = condition.rhs->var.name;
+                    char* constructedNameRHS = replaceWithUniqueHelper(oldVarName, nameFreqMap, varNameMap);
+                    condition.rhs->var.name = constructedNameRHS;
+                }
+            }
+            break;
+        }
+
+        /* Case 6: If statement is a call statement, updating variable name if parameter */
+        case ast_call: {
+            astCall callStmt = statement.call;
+
+            if (callStmt.param->type == ast_var) {
+                char* oldVarName = callStmt.param->var.name;
+                char* constructedNameRHS = replaceWithUniqueHelper(oldVarName, nameFreqMap, varNameMap);
+                callStmt.param->var.name = constructedNameRHS;  
+            }
+            break;
+        }
     }
     return varNameMap;
 }
@@ -551,10 +569,6 @@ char* replaceWithUniqueHelper(string oldVarName, unordered_map<string, int>* nam
 *
 */
 
-// function attributes??
-
-
-
 
 /***************** buildIR ***********************/
 LLVMModuleRef buildIR(unordered_map<string, int>* nameFreqMap, char* filename) 
@@ -572,11 +586,12 @@ LLVMModuleRef buildIR(unordered_map<string, int>* nameFreqMap, char* filename)
     LLVMTypeRef printParam = LLVMInt32Type();
     LLVMTypeRef printParamTypes[] = {printParam};
     LLVMTypeRef voidRet = LLVMVoidType();
-    LLVMTypeRef printFunc = LLVMFunctionType(voidRet, printParamTypes, 1, false);
+    printFunc = LLVMFunctionType(voidRet, printParamTypes, 1, false);
 
     // Generating read function
     LLVMTypeRef readIntRet = LLVMInt32Type();
-    LLVMTypeRef readFunc = LLVMFunctionType(readIntRet, NULL, 0, false);
+    LLVMTypeRef readParamTypes[] = {};
+    readFunc = LLVMFunctionType(readIntRet, readParamTypes, 0, false);
 
     // Adding external functions to module
     const char* printFuncName = "print";
@@ -664,19 +679,7 @@ LLVMModuleRef buildIR(unordered_map<string, int>* nameFreqMap, char* filename)
     LLVMBasicBlockRef exitBB;
 
     // Iterating through all statements in the node statement list 
-
-
     int blockNum = 0;
-
-
-
-
-
-
-
-
-
-
     for (auto stmtIter = statements->begin(); stmtIter != statements->end(); ++stmtIter) {
 
         // Generating LLVM IR for each statement
@@ -684,7 +687,6 @@ LLVMModuleRef buildIR(unordered_map<string, int>* nameFreqMap, char* filename)
         exitBB = generateIRStatement(statementNode, builder, entryBB, var_map, readValRef, mainFuncRef, &blockNum);
 
         entryBB = exitBB;
-
     }
 
     // Adding return terminator instruction at end of function if not already present
@@ -698,46 +700,35 @@ LLVMModuleRef buildIR(unordered_map<string, int>* nameFreqMap, char* filename)
         LLVMBuildBr(builder, retBB);
     }
 
-
-
-
-
-
+    // Creating set of blocks with predecessors
     set<LLVMBasicBlockRef> blocksWithPredecessors; 
 
-    for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(mainFuncRef); bb != NULL; bb = LLVMGetNextBasicBlock(bb)) {
+    for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(mainFuncRef); bb != NULL; 
+            bb = LLVMGetNextBasicBlock(bb)) {
 
         LLVMValueRef terminator = LLVMGetBasicBlockTerminator(bb);
-
         int numSuccessors = LLVMGetNumSuccessors(terminator);
-
-        
 
         for (int i = 0; i < numSuccessors; i++) {
             LLVMBasicBlockRef successorBB = LLVMGetSuccessor(terminator, i);
             blocksWithPredecessors.insert(successorBB);
         }
-
     }
 
+    // Deleting basic blocks with no predecessors
+    for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(mainFuncRef); bb != NULL; 
+            bb = LLVMGetNextBasicBlock(bb)) {
 
+        if (bb != LLVMGetFirstBasicBlock(mainFuncRef)) {
+            
+            auto iter = blocksWithPredecessors.find(bb);
+            if (iter == blocksWithPredecessors.end()) {
+                LLVMDeleteBasicBlock(bb);
+            }
+        }
+    }
 
-    // LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(mainFuncRef);
-    // bb = LLVMGetNextBasicBlock(bb);
-
-
-    // for (bb; bb != NULL; bb = LLVMGetNextBasicBlock(bb)) {
-
-    //     auto iter = blocksWithPredecessors.find(bb);
-
-    //     if (iter == blocksWithPredecessors.end()) {
-
-    //         LLVMDeleteBasicBlock(bb);
-    //     }
-
-
-    // }
-
+    // Cleaning up memory
     LLVMDisposeBuilder(builder);
 
     return module;
@@ -753,28 +744,6 @@ LLVMModuleRef buildIR(unordered_map<string, int>* nameFreqMap, char* filename)
 
 
     /*
-    
-Start at the root (prog node):
-Generate a module, set the target architecture
-Generate LLVM functions without bodies for print and read extern function declarations
-Visit the function node
-Do the following for the function node:
-Generate a LLVM builder.
-Generate an entry basic block, and let entryBB be the reference to this basic block
-Create a set with names of all parameters and local variables (strongly recommend using C++ strings for names).
-Set the position of the builder to the end of entryBB
-Initialize var_map to a new map: 
-For each name in the set created above: 
-Generate an alloc statement 
-Add name, LLVMvalueRef of alloc statement generated above to var_map  
-Generate an alloc instruction for the return value and keep the LLVMValueRef, ret_ref, of this instruction available everywhere in your program
-Generate a store instruction to store the function parameter (use LLVMGetParam) into the memory location associated with (alloc instruction) the parameter name in the function ast node. 
-Generate a return basic block and keep the LLVMBasicBlockRef, retBB, of this basic block available everywhere in your program
-Set the position of the builder to the end of retBB
-Add the following LLVM instructions to retBB:
-A load instruction from the ret_ref.
-A return instruction with operand as the load instruction created above.
-Generate IR for the function body by calling genIRStmt subroutine given below: pass entryBB as a parameter to genIRStmt and let the exitBB be the return value of genIRStmt call.
 
 
 
@@ -784,10 +753,6 @@ Set the position of the builder to the end of exitBB.
 Generate an unconditional branch to retBB.
 Remove all basic blocks that do not have any predecessor basic blocks (think breadth-first search (BFS) !!!)
 Time for memory cleanup (delete memory from maps, sets, builder)!*/
-
-    // char* moduleTest = LLVMPrintModuleToString(module);
-    // printf("%s", moduleTest);
-    // fflush(stdout);
 
 
 }
@@ -830,99 +795,71 @@ LLVMBasicBlockRef generateIRStatement(astNode* statementNode, LLVMBuilderRef bui
         }
 
 
+        /* Case 2: Call statement */
+        case ast_call: {
 
+            astCall callStmt = statementNode->stmt.call;
 
+            if (callStmt.param != nullptr) {
 
+                // Setting position of builder to end of startBB
+                LLVMPositionBuilderAtEnd(builder, startBB);
 
+                // Generating LLVM expression for parameter and LLVM statement for call statement
+                LLVMValueRef paramRef = generateIRExpression(callStmt.param, builder, var_map, readValRef, startBB);
+                LLVMValueRef params[] = {paramRef};
+                unsigned int numArgs = 1;
 
-            /*
-If the statement is a call statement (it must be a call to print function as per the grammar ):
-Set the position of the builder to the end of startBB
-Generate LLVMValueRef of the value being printed by calling the genIRExpr subroutine given below.
-Generate a Call instruction to the print function and use LLVMValueRef as parameter to the call.
-return startBB (startBB is also the endBB in case of an assignment statement)
-
-??????????
-
-*/
-
-        /*
-
-// a = read() for p5.c
-
-*/
-
-
-        // case ast_call: {
-
-        //     if (strcmp(statementNode->ext.name, "print") == 0) {
-
-        //         // Setting position of builder to end of startBB
-        //         LLVMPositionBuilderAtEnd(builder, startBB);
-
-        //         astNode* printParam = statementNode->func.param;
-
-        //         LLVMValueRef printParamRef = generateIRExpression(printParam, builder, var_map, readValRef, startBB);
-
-        //         LLVMBuildCall2(builder, LLVMVoidType(), printValRef, &printParamRef, 1, "print");
-
-        //     }
-        // }
-
-
-
-
+                // Generating call statement
+                LLVMBuildCall2(builder, printFunc, printValRef, params, numArgs, "");
+            }
+            return startBB;
+        }
 
 
         /* Case 3: While statement*/
-        // case ast_while: {
+        case ast_while: {
 
-        //     // Setting position of builder to the end of startBB
-        //     LLVMPositionBuilderAtEnd(builder, startBB);
+            // Setting position of builder to the end of startBB
+            LLVMPositionBuilderAtEnd(builder, startBB);
 
-        //     // Generating basic block for condition of while loop
-        //     char* newName = (char*) malloc(strlen(generateNewBBName(startBB, blockNum) + 1));
-        //     newName = strcpy(newName, generateNewBBName(startBB, blockNum));
-        //     LLVMBasicBlockRef condBB = LLVMAppendBasicBlock(mainFuncRef, newName);
+            // Generating basic block for condition of while loop
+            LLVMBasicBlockRef condBB = LLVMAppendBasicBlock(mainFuncRef, generateNewBBName(startBB, blockNum).c_str());
 
-        //     // Linking startBB to condBB w/ unconditional branch
-        //     LLVMValueRef newUncondBrRef = LLVMBuildBr(builder, condBB);
+            // Linking startBB to condBB w/ unconditional branch
+            LLVMValueRef newUncondBrRef = LLVMBuildBr(builder, condBB);
 
-        //     // Moving builder to end of condBB
-        //     LLVMPositionBuilderAtEnd(builder, condBB);
+            // Moving builder to end of condBB
+            LLVMPositionBuilderAtEnd(builder, condBB);
 
-        //     // Extract while condition node from while statement node
-        //     astWhile whileStatement = statementNode->stmt.whilen;
-        //     astNode* whileCondNode = whileStatement.cond;
-        //     LLVMValueRef newRelExprRef = generateIRExpression(whileCondNode, builder, var_map, readValRef, startBB);
+            // Extract while condition node from while statement node
+            astWhile whileStatement = statementNode->stmt.whilen;
+            astNode* whileCondNode = whileStatement.cond;
+            LLVMValueRef newRelExprRef = generateIRExpression(whileCondNode, builder, var_map, readValRef, startBB);
 
-        //     // Generating true basic block
-        //     char* newNameTrue = (char*) malloc(strlen(generateNewBBName(condBB, blockNum) + 1));
-        //     newNameTrue = strcpy(newNameTrue, generateNewBBName(condBB, blockNum));
-        //     LLVMBasicBlockRef trueBB = LLVMAppendBasicBlock(mainFuncRef, newNameTrue);
+            // Generating true basic block
+            LLVMBasicBlockRef trueBB = LLVMAppendBasicBlock(mainFuncRef, generateNewBBName(condBB, blockNum).c_str());
 
-        //     // Generating false basic block
-        //     char* newNameFalse = (char*) malloc(strlen(generateNewBBName(trueBB, blockNum) + 1));
-        //     newNameFalse = strcpy(newNameFalse, generateNewBBName(trueBB, blockNum));
-        //     LLVMBasicBlockRef falseBB = LLVMAppendBasicBlock(mainFuncRef, newNameFalse);
+            // Generating false basic block
+            LLVMBasicBlockRef falseBB = LLVMAppendBasicBlock(mainFuncRef, generateNewBBName(trueBB, blockNum).c_str());
 
-        //     // Generating conditional branch instruction to determine successor
-        //     LLVMBuildCondBr(builder, newRelExprRef, trueBB, falseBB);
+            // Generating conditional branch instruction to determine successor
+            LLVMBuildCondBr(builder, newRelExprRef, trueBB, falseBB);
 
-        //     // Retrieve while loop body node
-        //     astNode* whileBody = whileStatement.body;
+            // Retrieve while loop body node
+            astNode* whileBody = whileStatement.body;
 
-        //     // Generating LLVM IR for while body
-        //     LLVMBasicBlockRef trueExitBB = generateIRStatement(whileBody, builder, trueBB, var_map, readValRef, mainFuncRef, blockNum);
+            // Generating LLVM IR for while body
+            LLVMBasicBlockRef trueExitBB = generateIRStatement(whileBody, builder, trueBB, var_map, readValRef, mainFuncRef, blockNum);
 
-        //     // Setting position of builder to end of trueExitBB
-        //     LLVMPositionBuilderAtEnd(builder, trueExitBB);
+            // Setting position of builder to end of trueExitBB
+            LLVMPositionBuilderAtEnd(builder, trueExitBB);
 
-        //     // Generating unconditional branch linking trueExitBB to condBB
-        //     LLVMBuildBr(builder, condBB);
+            // Generating unconditional branch linking trueExitBB to condBB
+            LLVMBuildBr(builder, condBB);
 
-        //     return falseBB;
-        // }
+            return falseBB;
+        }
 
 
         /* Case 4: If-else/If statement */
@@ -973,8 +910,6 @@ return startBB (startBB is also the endBB in case of an assignment statement)
                 LLVMBasicBlockRef elseExitBB = generateIRStatement(elseNode, builder, falseBB, var_map, readValRef, mainFuncRef, blockNum);
 
                 // Generating endBB for if-else statement
-                //char* newNameEndBB = (char*) malloc(strlen(generateNewBBName(falseBB, blockNum) + 1));
-                //newNameEndBB = strcpy(newNameEndBB, generateNewBBName(falseBB, blockNum));
                 LLVMBasicBlockRef endBB = LLVMAppendBasicBlock(mainFuncRef, generateNewBBName(falseBB, blockNum).c_str());
 
                 // Linking trueBB and falseBB to common basic block
@@ -1006,8 +941,6 @@ return startBB (startBB is also the endBB in case of an assignment statement)
             LLVMBuildBr(builder, retBB);
 
             // Generating and returning new basic block
-            //char* newBlockName = (char*) malloc(strlen(generateNewBBName(startBB, blockNum) + 1));
-            //newBlockName = strcpy(newBlockName, generateNewBBName(startBB, blockNum));
             LLVMBasicBlockRef endBB = LLVMAppendBasicBlock(mainFuncRef, generateNewBBName(startBB, blockNum).c_str());
 
             return endBB;
@@ -1052,6 +985,13 @@ return startBB (startBB is also the endBB in case of an assignment statement)
 
 
 
+
+
+
+
+
+
+
 /***************** generateIRExpression ***********************/
 LLVMValueRef generateIRExpression(astNode* expressionNode, LLVMBuilderRef builder,
         unordered_map<string, LLVMValueRef> var_map, LLVMValueRef readValRef, LLVMBasicBlockRef bb)
@@ -1065,23 +1005,9 @@ LLVMValueRef generateIRExpression(astNode* expressionNode, LLVMBuilderRef builde
             unsigned long long intValue = expressionNode->cnst.value;
             LLVMValueRef newConstInst = LLVMConstInt(LLVMInt32Type(), intValue, true);
             return newConstInst;
+            break;
         }
 
-
-
-
-
-
-
-
-
-
-
-
-
-/*If the node is a var:
-Generate a load instruction that loads from the memory location (alloc instruction in var_map) corresponding to the variable name in the node.
-Return the LLVMValueRef of the load instruction.*/
 
         /* Case 2: Var node */
         case ast_var: {
@@ -1092,33 +1018,12 @@ Return the LLVMValueRef of the load instruction.*/
 
             // Retrieving variable value from memory and creating load instruction
             LLVMValueRef memLoc = var_map.at(varName);
-
-
-            // MAY NEED TO FIX THIS
             LLVMValueRef newLoadInstRef = LLVMBuildLoad2(builder, LLVMInt32Type(), memLoc, "");
             
             return newLoadInstRef;
+            break;
         }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*If the node is a unary expression:
-Generate LLVMValueRef for the expr in the unary expression node by calling genIRExpr recursively.
-Generate a subtraction instruction with constant 0 as the first operand and LLVMValueRef from step A above as the second operand.
-Return the LLVMValueRef of the subtraction instruction.*/
 
         /* Case 3: Unary node */
         case ast_uexpr: {
@@ -1133,22 +1038,8 @@ Return the LLVMValueRef of the subtraction instruction.*/
             LLVMValueRef subInst = LLVMBuildSub(builder, zeroValueRef, innerExpNodeRef, "");
 
             return subInst;
+            break;
         }
-
-
-
-
-
-
-
-/*If the node is a binary expression:
-Generate LLVMValueRef for the lhs in the binary expression node by calling genIRExpr recursively.
-Generate LLVMValueRef for the rhs in the binary expression node by calling genIRExpr recursively.
-Based on the operator in the binary expression node, generate an addition/subtraction/multiplication instruction using LLVMValueRef of lhs and rhs as operands.
-Return the LLVMValueRef of the instruction generated in step C.*/
-
-
-
 
 
         /* Case 4: Binary node */
@@ -1170,36 +1061,28 @@ Return the LLVMValueRef of the instruction generated in step C.*/
                 case add: {
                     LLVMValueRef newAddInstRef = LLVMBuildAdd(builder, lhsInnerExpNodeRef, rhsInnerExpNodeRef, "");
                     return newAddInstRef;
+                    break;
                 }
                 
                 case sub: {
                     LLVMValueRef newSubInstRef = LLVMBuildSub(builder, lhsInnerExpNodeRef, rhsInnerExpNodeRef, "");
                     return newSubInstRef;
+                    break;
                 }
 
                 case mul: {
                     LLVMValueRef newMulRef = LLVMBuildMul(builder, lhsInnerExpNodeRef, rhsInnerExpNodeRef, "");
                     return newMulRef;
+                    break;
                 }
 
                 case divide: {
                     LLVMValueRef newDivRef = LLVMBuildSDiv(builder, lhsInnerExpNodeRef, rhsInnerExpNodeRef, "");
                     return newDivRef;
+                    break;
                 }
             }
         }
-
-
-
-
-
-
-
-        /*If the node is a relational (comparison) expression:
-Generate LLVMValueRef for the lhs in the binary expression node by calling genIRExpr recursively.
-Generate LLVMValueRef for the rhs in the binary expression node by calling genIRExpr recursively.
-Based on the operator in the relational expression node, generate a compare instruction with parameter LLVMIntPredicate Op set to a comparison operator from LLVMIntPredicate enum in Core.h file.  The comparison operator should correspond to op in the given ast node.
-Return the LLVMValueRef of the instruction generated in step C.*/
 
 
         /* Case 5: Relational node */
@@ -1223,70 +1106,67 @@ Return the LLVMValueRef of the instruction generated in step C.*/
                     operationType = LLVMIntSLT;
                     newCmpInstRef = LLVMBuildICmp(builder, operationType, lhsInnerExpNodeRef, rhsInnerExpNodeRef, "");
                     return newCmpInstRef;
+                    break;
                 }
 
                 case gt: {
                     operationType = LLVMIntSLT;
                     newCmpInstRef = LLVMBuildICmp(builder, operationType, lhsInnerExpNodeRef, rhsInnerExpNodeRef, "");
                     return newCmpInstRef;
+                    break;
                 }
 
                 case le: {
                     operationType = LLVMIntSLE;
                     newCmpInstRef = LLVMBuildICmp(builder, operationType, lhsInnerExpNodeRef, rhsInnerExpNodeRef, "");
                     return newCmpInstRef;
+                    break;
                 }
 
                 case ge: {
                     operationType = LLVMIntSGT;
                     newCmpInstRef = LLVMBuildICmp(builder, operationType, lhsInnerExpNodeRef, rhsInnerExpNodeRef, "");
                     return newCmpInstRef;
+                    break;
                 }
 
                 case eq: {
                     operationType = LLVMIntEQ;
                     newCmpInstRef = LLVMBuildICmp(builder, operationType, lhsInnerExpNodeRef, rhsInnerExpNodeRef, "");
                     return newCmpInstRef;
+                    break;
                 }
 
                 case neq: {
                     operationType = LLVMIntNE;
                     newCmpInstRef = LLVMBuildICmp(builder, operationType, lhsInnerExpNodeRef, rhsInnerExpNodeRef, "");
                     return newCmpInstRef;
+                    break;
                 }
             }
             return newCmpInstRef;
         }
 
 
-
-
-
-
-    /*
-If the node is a call (it must be a read function call as per the grammar):
-Generate a call instruction to read function.
-Return the LLVMValueRef of the call instruction*/
-
-        // MAY NEED TO FIX THIS
-
         /* Case 6: Call instruction */
-        case ast_call: {
+        case ast_stmt: {
 
-            LLVMValueRef newCallRef = LLVMBuildCall2(builder, LLVMInt32Type(), readValRef, NULL, 0, "");
-            return newCallRef;
+            if (expressionNode->stmt.type == ast_call) {
+                LLVMValueRef params[] = {};
+                LLVMValueRef newCallRef = LLVMBuildCall2(builder, readFunc, readValRef, params, 0, "");
+                return newCallRef;
+            }
+            return NULL;
             break;
         }
-        default:
-            return NULL;
 
+
+        /* Case 7: Default */
+        default: {
+            return NULL;
+        }
     }
 }
-
-
-
-
-
 
 
 /***************** generateNewBBName ***********************/
@@ -1296,24 +1176,9 @@ string generateNewBBName(LLVMBasicBlockRef bb, int* blockNum)
     const char* parentBBName = LLVMGetBasicBlockName(bb);
     string parentBBNameAsString(parentBBName);
 
-    // Extracting block number of parent basic block
-    //string parentBBNum = parentBBNameAsString.substr(2);
-
-
-    printf("gentest: %s\n", parentBBName);
-    fflush(stdout);
-
-    
-
-
-
-
     // Generating new basic block name
     (*blockNum)++;
     string newParentBBName = "BB" + to_string(*blockNum);
-
-    printf("gentest after: %s\n", newParentBBName.c_str());
-
     return (newParentBBName);
 }
 
@@ -1337,11 +1202,17 @@ string generateNewBBName(LLVMBasicBlockRef bb, int* blockNum)
 
 
 
+ /*
+                
+                LLVMTypeRef testParam = LLVMInt32Type();
+    LLVMTypeRef testParamTypes[] = {};
+    LLVMTypeRef testIntRet = LLVMVoidType();
+    LLVMTypeRef testFunc = LLVMFunctionType(testIntRet, testParamTypes, 1, false);
 
+    LLVMValueRef testVal = LLVMAddFunction(module, "test", testFunc);
+    LLVMValueRef testInputs[] = {};
 
-
-
-
+    LLVMValueRef testInst = LLVMBuildCall2(builder, testFunc, testVal, testInputs, 0, "test");*/
 
 
 // static void printTest(unordered_map<string, LLVMValueRef>* varNameMap) {

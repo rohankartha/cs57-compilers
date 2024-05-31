@@ -102,11 +102,10 @@ int main(int argc, char* argv[])
 
 
 
-
-    LLVMModuleRef m3 = readAstTree(fileName);
-    //printNode(root);
-    printf("END\n");
+    printNode(root);
     fflush(stdout);
+    LLVMModuleRef m3 = readAstTree(fileName);
+    printf("END\n");
 
     LLVMDisposeModule(m3);
     freeNode(root);
