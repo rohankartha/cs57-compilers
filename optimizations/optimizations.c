@@ -217,21 +217,35 @@ bool constantFolding(LLVMValueRef function)
 
             // If instruction is add, subtract or multiply, replace with constant instruction
             switch (opCode) {
-                case LLVMAdd:
-                    constant = LLVMConstAdd(LLVMGetOperand(instruction, 0), LLVMGetOperand(instruction, 1));
-                    LLVMReplaceAllUsesWith(instruction, constant);
-                    change = true;
+                case LLVMAdd: {
+
+                    if (LLVMIsAConstant(LLVMGetOperand(instruction, 0)) != NULL && LLVMIsAConstant(LLVMGetOperand(instruction, 1)) != NULL) {
+                        constant = LLVMConstAdd(LLVMGetOperand(instruction, 0), LLVMGetOperand(instruction, 1));
+                        LLVMReplaceAllUsesWith(instruction, constant);
+                        change = true;
+                    }
                     break;
-                case LLVMSub:
-                    constant = LLVMConstSub(LLVMGetOperand(instruction, 0), LLVMGetOperand(instruction, 1));
-                    LLVMReplaceAllUsesWith(instruction, constant);
-                    change = true;
+                }
+
+                case LLVMSub: {
+
+                    if (LLVMIsAConstant(LLVMGetOperand(instruction, 0)) != NULL && LLVMIsAConstant(LLVMGetOperand(instruction, 1)) != NULL) {
+                        constant = LLVMConstSub(LLVMGetOperand(instruction, 0), LLVMGetOperand(instruction, 1));
+                        LLVMReplaceAllUsesWith(instruction, constant);
+                        change = true;
+                    }
                     break;
-                case LLVMMul:
-                    constant = LLVMConstMul(LLVMGetOperand(instruction, 0), LLVMGetOperand(instruction, 1));
-                    LLVMReplaceAllUsesWith(instruction, constant);
-                    change = true;
+                }
+
+                case LLVMMul: {
+
+                    if (LLVMIsAConstant(LLVMGetOperand(instruction, 0)) != NULL && LLVMIsAConstant(LLVMGetOperand(instruction, 1)) != NULL) {
+                        constant = LLVMConstMul(LLVMGetOperand(instruction, 0), LLVMGetOperand(instruction, 1));
+                        LLVMReplaceAllUsesWith(instruction, constant);
+                        change = true;
+                    }
                     break;
+                }
             }
 
             if (store) {
@@ -601,10 +615,10 @@ bool constantPropagation(LLVMValueRef function)
                 else {
                     completeBBSet.inSets.insert({bb, inSet});
                 }
-                deleteLoadInsts(completeBBSet, function);
             }
         }
     }
+    deleteLoadInsts(completeBBSet, function);
     return true;
 }
 
@@ -614,7 +628,7 @@ static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef functio
 {
     // Initializing vector to hold set R for each basic block
     vector<set<LLVMValueRef>> rSets;
-    unordered_map<LLVMBasicBlockRef, set<LLVMValueRef>> markedDelete;
+    set<LLVMValueRef> markedDelete;
 
     // Iterating through each basic block
     for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(function); bb != NULL;
@@ -638,11 +652,8 @@ static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef functio
                 instruction = LLVMGetNextInstruction(instruction)) {
 
             // Skipping any instructions that have been marked as deleted
-            auto delInstSet = markedDelete.find(bb);
-            if (delInstSet != markedDelete.end()) {
-                set<LLVMValueRef> delInst = delInstSet->second;
-
-                if (delInst.find(instruction) != delInst.end()) { continue; }
+            if (markedDelete.find(instruction) != markedDelete.end()) {
+                continue;
             }
             
             // If instruction is a store instruction
@@ -672,76 +683,68 @@ static void deleteLoadInsts(basicBlockSets_t completeBBSet, LLVMValueRef functio
                 // Finding store instructions in R that write to same memory location as instruction reads from
                 LLVMValueRef memLoc = LLVMGetOperand(instruction, 0);
                 vector<LLVMValueRef> sameLocStore;
-                bool nonemptysetcheck = false;
 
                 // Finding all the store instructions in R that write to same address
                 for (auto sameLocStoreIter = rSet.begin(); sameLocStoreIter != rSet.end(); ++sameLocStoreIter) {
 
                     LLVMValueRef storeInst = *sameLocStoreIter;
                     if (LLVMGetOperand(storeInst, 1) == memLoc) {
-                        nonemptysetcheck = true;
+    
                         sameLocStore.push_back(storeInst);
                     }
                 }
 
                 // Checking if all these store instructions store the same constant
-                bool same = true;
                 auto sameIter = sameLocStore.begin();
-                LLVMValueRef holder;
                 bool isConstant = true;
 
+                // Checking if any instructions do not store constants
                 for (auto sameIter = sameLocStore.begin(); sameIter != sameLocStore.end(); ++sameIter) {
-                    LLVMValueRef holder;
 
-                    if (!LLVMIsAConstant(LLVMGetOperand(*sameIter, 0))) {
+                    if (LLVMIsAConstant(LLVMGetOperand(*sameIter, 0)) == NULL) {
                         isConstant = false;
                     }
                 }
 
+                // If all instructions store constants, retrieving constant stored in first one
                 LLVMValueRef constOp;
-                if (isConstant && !sameLocStore.empty()) {
-                    sameIter = sameLocStore.begin();
-                    constOp = LLVMGetOperand(*sameIter, 0);
-                    ++sameIter;
-                }
-
                 bool sameConstant = true;
-                
-                if (isConstant) {
-                    for (sameIter; sameIter != sameLocStore.end(); ++sameIter) {
-                        LLVMValueRef testConst = LLVMGetOperand(*sameIter, 0);
 
-                        if (constOp != testConst) {
-                            sameConstant = false;
+                if (!sameLocStore.empty()) {
+
+                    if (isConstant) {
+                        auto sameIter = sameLocStore.begin();
+                        constOp = LLVMGetOperand(*sameIter, 0);
+                        ++sameIter;
+
+                        for (sameIter; sameIter != sameLocStore.end(); ++sameIter) {
+                            LLVMValueRef testConst = LLVMGetOperand(*sameIter, 0);
+
+                            if (constOp != testConst) {
+                                sameConstant = false;
+                            }
                         }
-                    }
-                }
 
-                // If conditions satisfied, replacing all uses of instruction with constant instruction
-                if (isConstant && sameConstant && nonemptysetcheck) {
+                        // If all store instructions have the same constant
+                        if (sameConstant) {
+                            long long constVal = LLVMConstIntGetSExtValue(constOp);
 
-                    long long constVal = LLVMConstIntGetSExtValue(constOp);
-                    LLVMTypeRef intType = LLVMInt32Type();
-                    LLVMValueRef constStore = LLVMConstInt(intType, constVal, true);
-                    LLVMReplaceAllUsesWith(instruction, constStore);
+                            LLVMTypeRef intType = LLVMInt32Type();
+                            LLVMValueRef constStore = LLVMConstInt(intType, constVal, true);
+                            LLVMReplaceAllUsesWith(instruction, constStore);
 
-                    // remove old instruction from rset and replace with new one
-                    rSet.erase(instruction);
-                    rSet.insert(constStore);
-
-                    // Marking old instruction for deletion
-                    auto delInstInBB = markedDelete.find(bb);
-
-                    if (delInstInBB != markedDelete.end()) {
-                        delInstInBB->second.insert(instruction);
-                    }
-                    else {
-                        set<LLVMValueRef> delInst;
-                        delInst.insert(instruction);
-                        markedDelete.insert({bb, delInst});
+                            // Marking old instruction for deletion
+                            auto delInstInBB = markedDelete.insert(instruction);
+                        }    
                     }
                 }
             }
         }
+
+        for (auto iter = markedDelete.begin(); iter != markedDelete.end(); ++iter) {
+            LLVMInstructionRemoveFromParent(*iter);
+        }
+        markedDelete.clear();
     }
+    return;
 }

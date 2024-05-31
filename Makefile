@@ -74,7 +74,6 @@ valgrind:
 clean:
 	rm -f *.o y.tab.c y.tab.h y.output lex.yy.c
 	rm -f compiler
-	rm -f test_new.ll test_old.ll
 	rm -f optimizer.o optimizations.o
 	rm -f irbuilder.o
 	rm -f assemblycodegen.o

@@ -42,43 +42,40 @@ void walkFunctions(LLVMModuleRef module)
 {
 	LLVMValueRef function =  LLVMGetFirstFunction(module); 
 
+
+	for (LLVMValueRef function =  LLVMGetFirstFunction(module); 
+			function; 
+			function = LLVMGetNextFunction(function)) {
+
 	for (LLVMBasicBlockRef basicBlock = LLVMGetFirstBasicBlock(function);
  			 basicBlock;
   			 basicBlock = LLVMGetNextBasicBlock(basicBlock)) {
 
-        // Local optimization
-        removeCommonSubexpression(basicBlock);
-	}
+			// Local optimization
+			removeCommonSubexpression(basicBlock);
+		}
 
-	bool change = true;
-	while (change) {
-		printf("iteration\n");
+		bool change = true;
+		while (change) {
 
-		// Global optimization
-		printf("Constant prop\n");
-		bool constantPropResult = constantPropagation(function);
+			// Global optimization
+			bool constantPropResult = constantPropagation(function);
 
-		// Local optimization
-		printf("Constant fold\n");
-		bool constantFoldResult = constantFolding(function);
-		printf("dead code\n");
-		bool deadCodeResult = cleanDeadCode(function);
+			// Local optimization
+			bool constantFoldResult = constantFolding(function);
+			bool deadCodeResult = cleanDeadCode(function);
 
-		if (constantFoldResult && deadCodeResult) {
-			printf("if1\n");
-			fflush(stdout);
-			if (constantPropResult) {
-				printf("if2\n");
-				fflush(stdout);
-				change = false;
+			if (constantFoldResult && deadCodeResult) {
+				if (constantPropResult) {
+					change = false;
+				}
 			}
+			else {
+				change = true;
+			}
+			
 		}
-		else {
-			printf("if3\n");
-			change = true;
-		}
-		
-	}
+}
 
 	return;
 }

@@ -55,13 +55,11 @@ int main(int argc, char* argv[])
     /* Section 1: Front-end */
 
     // Open mini-c file
-    if (argc == 3) {
+    if (argc == 2) {
         yyin = fopen(argv[1], "r");
 
 
         fileName = argv[1];
-        filename = argv[2];
-        //m = createLLVMModel(filename);
 
         if (yyin == NULL) {
             fprintf(stderr, "File open error");
@@ -71,7 +69,7 @@ int main(int argc, char* argv[])
 
     // Conduct lexical and syntax analysis of mini-c file
     yyparse();
-    if (argc == 3) {
+    if (argc == 2) {
         fclose(yyin);
     }
     yylex_destroy();
@@ -90,43 +88,43 @@ int main(int argc, char* argv[])
         printf("Semantic analysis NOT passed\n");
     }
 
+    //printNode(root);
+
     // Free memory holding AST
 
 
 
     /* Section 2: IR builder */
-    //unordered_map<string, LLVMValueRef> varLocs = renameVariables();
-
-    //LLVMModuleCreateWithName(fileName);
-
-
-
-
-    printNode(root);
-    fflush(stdout);
     LLVMModuleRef m3 = readAstTree(fileName);
     printf("END\n");
+    LLVMPrintModuleToFile (m3, "after_ir_builder.ll", NULL);
 
-    LLVMDisposeModule(m3);
-    freeNode(root);
+    //LLVMDisposeModule(m3);
+    //freeNode(root);
     
 
     
-
-
-    
-
-
-
-
-
     /* Section 3: Optimizations */
-    // LLVMPrintModuleToFile (m, "test_old.ll", NULL);
-	// walkFunctions(m);
-	// LLVMPrintModuleToFile (m, "test_new.ll", NULL);
+    // LLVMPrintModuleToFile (m3, "test_old_test.ll", NULL);
+
+    // LLVMModuleRef m4 = createLLVMModel("test_old_test.ll");
+
+
+	walkFunctions(m3);
+    LLVMPrintModuleToFile (m3, "after_opt.ll", NULL);
 
 	//LLVMDisposeModule(m3);
-	LLVMShutdown();
+	//LLVMShutdown();
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -185,3 +183,4 @@ int main(int argc, char* argv[])
     //exit(0);
     return 0;
 }
+
