@@ -9,7 +9,7 @@
 
 /**************** Dependencies ****************/
 #include "front-end/ast/ast.h"
-#include "front-end/y.tab.h"
+#include "y.tab.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <cstddef>

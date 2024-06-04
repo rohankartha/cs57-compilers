@@ -4,8 +4,8 @@
     #include <string.h>
     #include <cstddef>
     #include <vector>
-    #include "ast/ast.h"
-    #include "semantic-analysis.h"
+    #include "front-end/ast/ast.h"
+    #include "front-end/semantic-analysis.h"
 
     extern int yylex();
     extern int yylex_destroy();
@@ -13,7 +13,7 @@
     extern int yytext;
     int yyerror(const char *);
     extern FILE* yyin;
-    astNode* root;
+    extern astNode* root;
 %}
 
 %union{

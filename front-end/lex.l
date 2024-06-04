@@ -2,7 +2,7 @@
     #include <stdio.h>
     #include <stdbool.h>
     #include <string.h>
-    #include "ast/ast.h"
+    #include "front-end/ast/ast.h"
     #include "y.tab.h"
 %}
 %%

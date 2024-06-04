@@ -33,7 +33,7 @@ modules: syntaxanalyzer front-end optimizations irbuilder codegenerator
 ##### Object file dependencies #####
 semantic-analysis.o: $(FE)/semantic-analysis.h
 ast.o: $(AST)/ast.h
-y.tab.o: $(FE)/y.tab.h 
+y.tab.o: y.tab.h 
 optimizer.o: $(OPT)/optimizer.h 
 optimizations.o: $(OPT)/optimizations.h
 irbuilder.o: $(IRB)/irbuilder.h 
@@ -52,7 +52,7 @@ optimizations: front-end syntaxanalyzer
 	g++ -g -I /usr/include/llvm-c-15 -c $(OPT)/optimizer.c
 
 front-end: syntaxanalyzer
-	g++ -g -c $(FE)/semantic-analysis.c $(AST)/ast.c $(FE)/lex.yy.c $(FE)/y.tab.c
+	g++ -g -c $(FE)/semantic-analysis.c $(AST)/ast.c lex.yy.c y.tab.c
 
 syntaxanalyzer: front-end/yacc.y front-end/lex.l
 	yacc -d -v -t -Wcounterexamples front-end/yacc.y
@@ -71,3 +71,6 @@ clean:
 	rm -f optimizer.o optimizations.o
 	rm -f irbuilder.o
 	rm -f assemblycodegen.o
+	rm -f assembly.asm
+	rm -f after_ir_builder.ll
+	rm -f after_opt.ll
